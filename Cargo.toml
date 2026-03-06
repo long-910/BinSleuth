@@ -28,7 +28,7 @@ name = "binsleuth"
 path = "src/main.rs"
 
 [dependencies]
-object  = "0.38"
+object  = { version = "0.38", default-features = false, features = ["read", "elf", "pe"] }
 clap    = { version = "4.5", features = ["derive"] }
 anyhow  = "1.0"
 colored = "3.0"
