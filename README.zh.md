@@ -10,7 +10,7 @@
 [![CI](https://github.com/long-910/BinSleuth/actions/workflows/ci.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/ci.yml)
 [![Release](https://github.com/long-910/BinSleuth/actions/workflows/release.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![MSRV](https://img.shields.io/badge/rustc-1.70%2B-orange.svg)](https://www.rust-lang.org)
+[![MSRV](https://img.shields.io/badge/rustc-1.82%2B-orange.svg)](https://www.rust-lang.org)
 [![Tests](https://img.shields.io/badge/tests-32%20passing-brightgreen.svg)](#)
 
 **Language / 言語 / 语言:**
@@ -91,7 +91,7 @@ cargo build --release
 
 ### 环境要求
 
-- Rust **1.70** 或更高版本
+- Rust **1.82** 或更高版本
 - 无需系统库 — 纯 Rust 实现
 
 ---

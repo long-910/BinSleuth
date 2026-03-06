@@ -10,7 +10,7 @@ Inspect ELF & PE binaries for hardening flags and detect packed/encrypted sectio
 [![CI](https://github.com/long-910/BinSleuth/actions/workflows/ci.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/ci.yml)
 [![Release](https://github.com/long-910/BinSleuth/actions/workflows/release.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![MSRV](https://img.shields.io/badge/rustc-1.70%2B-orange.svg)](https://www.rust-lang.org)
+[![MSRV](https://img.shields.io/badge/rustc-1.82%2B-orange.svg)](https://www.rust-lang.org)
 [![Tests](https://img.shields.io/badge/tests-32%20passing-brightgreen.svg)](#)
 
 **Language / 言語 / 语言:**
@@ -91,7 +91,7 @@ cargo build --release
 
 ### Requirements
 
-- Rust **1.70** or later
+- Rust **1.82** or later
 - No system libraries required — pure Rust
 
 ---
