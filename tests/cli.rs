@@ -87,8 +87,9 @@ fn empty_file_exits_with_code_1() {
 
 // ── Self-analysis (Linux / ELF) ───────────────────────────────────────────────
 
-/// Analyze the binsleuth binary itself — it is always a valid ELF or PE.
+/// Analyze the binsleuth binary itself — valid ELF (Linux) or PE (Windows).
 #[test]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 fn self_analysis_exits_zero() {
     let bin = env!("CARGO_BIN_EXE_binsleuth");
     let out = binsleuth().arg(bin).output().unwrap();
@@ -101,6 +102,7 @@ fn self_analysis_exits_zero() {
 }
 
 #[test]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 fn self_analysis_stdout_contains_sections() {
     let bin = env!("CARGO_BIN_EXE_binsleuth");
     let out = binsleuth().arg(bin).output().unwrap();
@@ -143,6 +145,7 @@ fn self_analysis_reports_pe() {
 
 /// With --verbose, all sections must appear (not just high-entropy ones).
 #[test]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 fn verbose_flag_produces_more_output() {
     let bin = env!("CARGO_BIN_EXE_binsleuth");
 
