@@ -1,8 +1,8 @@
 [package]
 name        = "binsleuth"
 version     = "0.1.0"
-edition     = "2021"
-rust-version = "1.82"
+edition     = "2024"
+rust-version = "1.85"
 
 description = "ELF/PE binary security hardening checker and section-level entropy analyzer"
 authors     = ["Small Long <long-910>"]
