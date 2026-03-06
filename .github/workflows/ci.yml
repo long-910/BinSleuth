@@ -55,7 +55,7 @@ jobs:
         with:
           key: ${{ matrix.os }}
       - name: Run unit tests
-        run: cargo test --lib
+        run: cargo test --bins
       - name: Run integration tests
         run: cargo test --test cli
 
