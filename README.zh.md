@@ -7,9 +7,11 @@
 
 [![Crates.io](https://img.shields.io/crates/v/binsleuth.svg)](https://crates.io/crates/binsleuth)
 [![docs.rs](https://docs.rs/binsleuth/badge.svg)](https://docs.rs/binsleuth)
-[![CI](https://github.com/long-910/BinSleuth/actions/workflows/ci.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions)
+[![CI](https://github.com/long-910/BinSleuth/actions/workflows/ci.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/ci.yml)
+[![Release](https://github.com/long-910/BinSleuth/actions/workflows/release.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org)
+[![MSRV](https://img.shields.io/badge/rustc-1.70%2B-orange.svg)](https://www.rust-lang.org)
+[![Tests](https://img.shields.io/badge/tests-32%20passing-brightgreen.svg)](#)
 
 **Language / 言語 / 语言:**
 [English](README.md) · [日本語](README.ja.md) · [中文](README.zh.md)
@@ -228,6 +230,35 @@ BinSleuth/
 
 ---
 
+## 测试
+
+```bash
+# 运行所有测试（单元测试 + 集成测试）
+cargo test
+
+# 仅运行单元测试
+cargo test --lib
+
+# 仅运行集成测试（需要编译好的二进制文件）
+cargo test --test cli
+
+# 代码检查
+cargo clippy -- -D warnings
+
+# 格式检查
+cargo fmt --check
+```
+
+测试套件包含 **22 个单元测试** 和 **10 个集成测试**：
+
+| 模块 | 测试数量 | 覆盖范围 |
+|------|---------|---------|
+| `analyzer::entropy` | 9 | 香农公式、边界值、单调性 |
+| `analyzer::hardening` | 13 | PE 头解析、RELRO 状态、ELF 自分析 |
+| `tests::cli` | 10 | CLI 参数、错误处理、自分析、详细模式 |
+
+---
+
 ## 参与贡献
 
 欢迎贡献代码！
@@ -235,7 +266,7 @@ BinSleuth/
 1. Fork 本仓库
 2. 创建功能分支：`git checkout -b feat/your-feature`
 3. 适当添加测试
-4. 提交前运行 `cargo test && cargo clippy`
+4. 提交前运行 `cargo test && cargo clippy -- -D warnings`
 5. 发起 Pull Request
 
 详情请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)（*即将发布*）。

@@ -101,4 +101,44 @@ mod tests {
         let h = calculate_entropy(&data);
         assert!((0.0..=8.0).contains(&h));
     }
+
+    #[test]
+    fn two_symbols_gives_one_bit() {
+        // Equal mix of 0x00 and 0xFF → H = 1.0 bit
+        let data: Vec<u8> = (0..1024).map(|i| if i % 2 == 0 { 0x00 } else { 0xFF }).collect();
+        let h = calculate_entropy(&data);
+        assert!((h - 1.0).abs() < 1e-10, "expected 1.0, got {h}");
+    }
+
+    #[test]
+    fn single_byte_slice_is_zero() {
+        assert_eq!(calculate_entropy(&[0x42]), 0.0);
+    }
+
+    #[test]
+    fn high_entropy_exceeds_threshold() {
+        // All 256 byte values present → entropy ~8.0, clearly above the 7.0 warn threshold
+        let data: Vec<u8> = (0..=255u8).collect();
+        assert!(calculate_entropy(&data) > 7.0);
+    }
+
+    #[test]
+    fn low_entropy_text_like_data() {
+        // ASCII-range only (32..=127): 96 distinct values, entropy < 8.0 but > 0.0
+        let data: Vec<u8> = (0..512).map(|i| (32 + i % 96) as u8).collect();
+        let h = calculate_entropy(&data);
+        assert!(h > 0.0 && h < 8.0, "expected moderate entropy, got {h}");
+    }
+
+    #[test]
+    fn monotone_increase_with_diversity() {
+        // More distinct values → higher entropy
+        let one   = calculate_entropy(&[0u8; 256]);
+        let two   = calculate_entropy(&(0..256).map(|i| (i % 2)   as u8).collect::<Vec<_>>());
+        let four  = calculate_entropy(&(0..256).map(|i| (i % 4)   as u8).collect::<Vec<_>>());
+        let all   = calculate_entropy(&(0u8..=255).collect::<Vec<_>>());
+        assert!(one < two, "1 symbol < 2 symbols");
+        assert!(two < four, "2 symbols < 4 symbols");
+        assert!(four < all, "4 symbols < 256 symbols");
+    }
 }

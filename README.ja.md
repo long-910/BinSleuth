@@ -7,9 +7,11 @@
 
 [![Crates.io](https://img.shields.io/crates/v/binsleuth.svg)](https://crates.io/crates/binsleuth)
 [![docs.rs](https://docs.rs/binsleuth/badge.svg)](https://docs.rs/binsleuth)
-[![CI](https://github.com/long-910/BinSleuth/actions/workflows/ci.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions)
+[![CI](https://github.com/long-910/BinSleuth/actions/workflows/ci.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/ci.yml)
+[![Release](https://github.com/long-910/BinSleuth/actions/workflows/release.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org)
+[![MSRV](https://img.shields.io/badge/rustc-1.70%2B-orange.svg)](https://www.rust-lang.org)
+[![Tests](https://img.shields.io/badge/tests-32%20passing-brightgreen.svg)](#)
 
 **Language / 言語 / 语言:**
 [English](README.md) · [日本語](README.ja.md) · [中文](README.zh.md)
@@ -228,6 +230,35 @@ BinSleuth/
 
 ---
 
+## テスト
+
+```bash
+# 全テスト（ユニット + 統合）
+cargo test
+
+# ユニットテストのみ
+cargo test --lib
+
+# 統合テストのみ（ビルド済みバイナリが必要）
+cargo test --test cli
+
+# Lint
+cargo clippy -- -D warnings
+
+# フォーマットチェック
+cargo fmt --check
+```
+
+テストスイートは **ユニットテスト 22 件** と **統合テスト 10 件** で構成されています。
+
+| モジュール | テスト数 | カバー範囲 |
+|-----------|---------|-----------|
+| `analyzer::entropy` | 9 | シャノン公式、境界値、単調性 |
+| `analyzer::hardening` | 13 | PE ヘッダー解析、RELRO 状態、ELF 自己解析 |
+| `tests::cli` | 10 | CLI フラグ、エラー処理、自己解析、verbose モード |
+
+---
+
 ## コントリビュート
 
 コントリビューションを歓迎します！
@@ -235,7 +266,7 @@ BinSleuth/
 1. リポジトリをフォーク
 2. フィーチャーブランチを作成: `git checkout -b feat/your-feature`
 3. 必要に応じてテストを記述
-4. `cargo test && cargo clippy` でチェック
+4. `cargo test && cargo clippy -- -D warnings` でチェック
 5. Pull Request を作成
 
 詳細は [CONTRIBUTING.md](CONTRIBUTING.md) *(準備中)* をご覧ください。

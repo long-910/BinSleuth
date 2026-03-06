@@ -212,12 +212,13 @@ fn detect_relro_64(data: &[u8]) -> CheckResult {
             elf::PT_DYNAMIC => {
                 if let Ok(Some(entries)) = phdr.dynamic(endian, data) {
                     for entry in entries {
-                        let tag = u64::from(entry.d_tag(endian)) as u32;
-                        let val = u64::from(entry.d_val(endian));
-                        if tag == elf::DT_FLAGS && val & elf::DF_BIND_NOW as u64 != 0 {
+                        // Dyn64: d_tag → u64, d_val → u64
+                        let tag = entry.d_tag(endian);
+                        let val = entry.d_val(endian);
+                        if tag == elf::DT_FLAGS as u64 && val & elf::DF_BIND_NOW as u64 != 0 {
                             has_bind_now = true;
                         }
-                        if tag == elf::DT_FLAGS_1 && val & elf::DF_1_NOW as u64 != 0 {
+                        if tag == elf::DT_FLAGS_1 as u64 && val & elf::DF_1_NOW as u64 != 0 {
                             has_bind_now = true;
                         }
                     }
@@ -253,12 +254,13 @@ fn detect_relro_32(data: &[u8]) -> CheckResult {
             elf::PT_DYNAMIC => {
                 if let Ok(Some(entries)) = phdr.dynamic(endian, data) {
                     for entry in entries {
-                        let tag = u32::from(entry.d_tag(endian));
+                        // Dyn32: d_tag → u32, d_val → u32; widen both for uniform comparisons
+                        let tag = u64::from(entry.d_tag(endian));
                         let val = u64::from(entry.d_val(endian));
-                        if tag == elf::DT_FLAGS && val & elf::DF_BIND_NOW as u64 != 0 {
+                        if tag == elf::DT_FLAGS as u64 && val & elf::DF_BIND_NOW as u64 != 0 {
                             has_bind_now = true;
                         }
-                        if tag == elf::DT_FLAGS_1 && val & elf::DF_1_NOW as u64 != 0 {
+                        if tag == elf::DT_FLAGS_1 as u64 && val & elf::DF_1_NOW as u64 != 0 {
                             has_bind_now = true;
                         }
                     }
@@ -364,4 +366,146 @@ fn collect_dangerous_symbols(obj: &object::File) -> Vec<String> {
     found.sort();
     found.dedup();
     found
+}
+
+// ── Unit tests ────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /// Build a minimal syntactically-valid PE32 with the given DllCharacteristics.
+    ///
+    /// Layout (all little-endian):
+    ///   0x00        DOS magic "MZ"
+    ///   0x3c..0x40  e_lfanew = 0x40
+    ///   0x40..0x44  PE signature "PE\0\0"
+    ///   0x44..0x58  COFF header (20 zero bytes)
+    ///   0x58..0x5a  Optional header magic = 0x010b (PE32)
+    ///   0x58+70 ..  DllCharacteristics (2 bytes)
+    fn make_pe32(dll_chars: u16) -> Vec<u8> {
+        const E_LFANEW: usize = 0x40;
+        const OPT_OFFSET: usize = E_LFANEW + 4 + 20; // PE sig + COFF header
+        const DLL_OFFSET: usize = OPT_OFFSET + 70;
+
+        let mut data = vec![0u8; DLL_OFFSET + 2];
+        data[0] = b'M';
+        data[1] = b'Z';
+        data[0x3c..0x40].copy_from_slice(&(E_LFANEW as u32).to_le_bytes());
+        data[E_LFANEW..E_LFANEW + 4].copy_from_slice(b"PE\0\0");
+        data[OPT_OFFSET..OPT_OFFSET + 2].copy_from_slice(&0x010bu16.to_le_bytes()); // PE32
+        data[DLL_OFFSET..DLL_OFFSET + 2].copy_from_slice(&dll_chars.to_le_bytes());
+        data
+    }
+
+    // ── PE characteristic tests ───────────────────────────────────────────────
+
+    #[test]
+    fn pe_nx_and_pie_enabled() {
+        let (nx, pie) = detect_pe_characteristics(&make_pe32(0x0140));
+        assert_eq!(nx, CheckResult::Enabled);
+        assert_eq!(pie, CheckResult::Enabled);
+    }
+
+    #[test]
+    fn pe_nx_only_enabled() {
+        let (nx, pie) = detect_pe_characteristics(&make_pe32(0x0100));
+        assert_eq!(nx, CheckResult::Enabled);
+        assert_eq!(pie, CheckResult::Disabled);
+    }
+
+    #[test]
+    fn pe_pie_only_enabled() {
+        let (nx, pie) = detect_pe_characteristics(&make_pe32(0x0040));
+        assert_eq!(nx, CheckResult::Disabled);
+        assert_eq!(pie, CheckResult::Enabled);
+    }
+
+    #[test]
+    fn pe_no_protections() {
+        let (nx, pie) = detect_pe_characteristics(&make_pe32(0x0000));
+        assert_eq!(nx, CheckResult::Disabled);
+        assert_eq!(pie, CheckResult::Disabled);
+    }
+
+    #[test]
+    fn pe_too_short_returns_disabled() {
+        let (nx, pie) = detect_pe_characteristics(&[0u8; 10]);
+        assert_eq!(nx, CheckResult::Disabled);
+        assert_eq!(pie, CheckResult::Disabled);
+    }
+
+    #[test]
+    fn pe_empty_returns_disabled() {
+        let (nx, pie) = detect_pe_characteristics(&[]);
+        assert_eq!(nx, CheckResult::Disabled);
+        assert_eq!(pie, CheckResult::Disabled);
+    }
+
+    #[test]
+    fn pe_bad_signature_returns_disabled() {
+        let mut data = make_pe32(0x0140);
+        // Corrupt the PE signature
+        data[0x40] = 0x00;
+        let (nx, pie) = detect_pe_characteristics(&data);
+        assert_eq!(nx, CheckResult::Disabled);
+        assert_eq!(pie, CheckResult::Disabled);
+    }
+
+    // ── RELRO helper tests ────────────────────────────────────────────────────
+
+    #[test]
+    fn relro_full_when_both_flags_set() {
+        assert_eq!(relro_result(true, true), CheckResult::Enabled);
+    }
+
+    #[test]
+    fn relro_partial_when_only_segment_present() {
+        assert!(
+            matches!(relro_result(true, false), CheckResult::Partial(_)),
+            "expected Partial RELRO"
+        );
+    }
+
+    #[test]
+    fn relro_disabled_when_no_segment() {
+        assert_eq!(relro_result(false, false), CheckResult::Disabled);
+    }
+
+    #[test]
+    fn relro_disabled_when_bind_now_without_segment() {
+        // BIND_NOW alone (no PT_GNU_RELRO) should still be Disabled
+        assert_eq!(relro_result(false, true), CheckResult::Disabled);
+    }
+
+    // ── CheckResult display invariants ────────────────────────────────────────
+
+    #[test]
+    fn check_result_partial_carries_message() {
+        let msg = "Partial RELRO".to_owned();
+        match CheckResult::Partial(msg.clone()) {
+            CheckResult::Partial(s) => assert_eq!(s, msg),
+            other => panic!("expected Partial, got {:?}", other),
+        }
+    }
+
+    // ── Full HardeningInfo round-trip on the test binary (ELF) ───────────────
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn analyze_self_succeeds_on_linux() {
+        // Read the binsleuth test binary that cargo placed next to us.
+        // The binary will be valid ELF on Linux.
+        let path = std::env::current_exe().expect("current exe");
+        let data = std::fs::read(&path).expect("read self");
+        let info = HardeningInfo::analyze(&data).expect("analyze");
+        assert_eq!(info.format, "ELF");
+        // At minimum the enum variants should be the expected types
+        assert!(matches!(
+            info.nx,
+            CheckResult::Enabled | CheckResult::Disabled | CheckResult::Partial(_)
+        ));
+    }
 }

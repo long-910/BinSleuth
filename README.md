@@ -7,9 +7,11 @@ Inspect ELF & PE binaries for hardening flags and detect packed/encrypted sectio
 
 [![Crates.io](https://img.shields.io/crates/v/binsleuth.svg)](https://crates.io/crates/binsleuth)
 [![docs.rs](https://docs.rs/binsleuth/badge.svg)](https://docs.rs/binsleuth)
-[![CI](https://github.com/long-910/BinSleuth/actions/workflows/ci.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions)
+[![CI](https://github.com/long-910/BinSleuth/actions/workflows/ci.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/ci.yml)
+[![Release](https://github.com/long-910/BinSleuth/actions/workflows/release.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Rust](https://img.shields.io/badge/rust-1.70%2B-orange.svg)](https://www.rust-lang.org)
+[![MSRV](https://img.shields.io/badge/rustc-1.70%2B-orange.svg)](https://www.rust-lang.org)
+[![Tests](https://img.shields.io/badge/tests-32%20passing-brightgreen.svg)](#)
 
 **Language / 言語 / 语言:**
 [English](README.md) · [日本語](README.ja.md) · [中文](README.zh.md)
@@ -228,6 +230,35 @@ BinSleuth/
 
 ---
 
+## Testing
+
+```bash
+# All tests (unit + integration)
+cargo test
+
+# Unit tests only
+cargo test --lib
+
+# Integration tests only (requires compiled binary)
+cargo test --test cli
+
+# Lint
+cargo clippy -- -D warnings
+
+# Format check
+cargo fmt --check
+```
+
+The test suite includes **22 unit tests** and **10 integration tests**:
+
+| Module | Tests | Coverage |
+|--------|-------|---------|
+| `analyzer::entropy` | 9 | Shannon formula, edge cases, monotonicity |
+| `analyzer::hardening` | 13 | PE header parsing, RELRO states, ELF self-analysis |
+| `tests::cli` | 10 | CLI flags, error handling, self-analysis, verbose mode |
+
+---
+
 ## Contributing
 
 Contributions are welcome!
@@ -235,7 +266,7 @@ Contributions are welcome!
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feat/your-feature`
 3. Write tests where applicable
-4. Run `cargo test && cargo clippy` before submitting
+4. Run `cargo test && cargo clippy -- -D warnings` before submitting
 5. Open a Pull Request
 
 Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details *(coming soon)*.
