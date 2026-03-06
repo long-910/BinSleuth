@@ -33,11 +33,30 @@ impl TerminalReporter {
 
     fn print_header(&self, path: &Path, hardening: &HardeningInfo) {
         println!();
-        println!("{}", "╔══════════════════════════════════════════════════════╗".cyan().bold());
-        println!("{}", "║              BinSleuth — Binary Analyzer             ║".cyan().bold());
-        println!("{}", "╚══════════════════════════════════════════════════════╝".cyan().bold());
+        println!(
+            "{}",
+            "╔══════════════════════════════════════════════════════╗"
+                .cyan()
+                .bold()
+        );
+        println!(
+            "{}",
+            "║              BinSleuth — Binary Analyzer             ║"
+                .cyan()
+                .bold()
+        );
+        println!(
+            "{}",
+            "╚══════════════════════════════════════════════════════╝"
+                .cyan()
+                .bold()
+        );
         println!();
-        println!("  {}  {}", "File:".bold(), path.display().to_string().yellow());
+        println!(
+            "  {}  {}",
+            "File:".bold(),
+            path.display().to_string().yellow()
+        );
         println!("  {}  {}", "Format:".bold(), hardening.format.yellow());
         println!("  {}  {}", "Arch:".bold(), hardening.architecture.yellow());
         println!();
@@ -46,7 +65,10 @@ impl TerminalReporter {
     // ── Hardening section ─────────────────────────────────────────────────────
 
     fn print_hardening(&self, info: &HardeningInfo) {
-        println!("{}", "  ── Security Hardening ──────────────────────────────────".bold());
+        println!(
+            "{}",
+            "  ── Security Hardening ──────────────────────────────────".bold()
+        );
         println!();
 
         self.print_check("NX (Non-Executable Stack)", &info.nx);
@@ -80,7 +102,10 @@ impl TerminalReporter {
     // ── Entropy section ───────────────────────────────────────────────────────
 
     fn print_entropy(&self, entropies: &[SectionEntropy]) {
-        println!("{}", "  ── Section Entropy ─────────────────────────────────────".bold());
+        println!(
+            "{}",
+            "  ── Section Entropy ─────────────────────────────────────".bold()
+        );
         println!();
         println!(
             "  {:<24} {:>12}  {:>10}  {}",
@@ -118,7 +143,10 @@ impl TerminalReporter {
         }
 
         // Always show a summary of high-entropy sections
-        let high_count = entropies.iter().filter(|s| s.entropy > ENTROPY_WARN_THRESHOLD).count();
+        let high_count = entropies
+            .iter()
+            .filter(|s| s.entropy > ENTROPY_WARN_THRESHOLD)
+            .count();
         if high_count == 0 {
             println!("  {}", "All sections within normal entropy range.".green());
         } else {
@@ -134,11 +162,12 @@ impl TerminalReporter {
             );
         }
 
-        if !self.verbose && entropies.iter().all(|s| s.entropy <= ENTROPY_WARN_THRESHOLD) {
-            println!(
-                "  {}",
-                "(run with --verbose to show all sections)".dimmed()
-            );
+        if !self.verbose
+            && entropies
+                .iter()
+                .all(|s| s.entropy <= ENTROPY_WARN_THRESHOLD)
+        {
+            println!("  {}", "(run with --verbose to show all sections)".dimmed());
         }
 
         println!();
@@ -147,7 +176,10 @@ impl TerminalReporter {
     // ── Dangerous symbols section ─────────────────────────────────────────────
 
     fn print_dangerous_symbols(&self, info: &HardeningInfo) {
-        println!("{}", "  ── Dangerous Symbol Usage ──────────────────────────────".bold());
+        println!(
+            "{}",
+            "  ── Dangerous Symbol Usage ──────────────────────────────".bold()
+        );
         println!();
 
         if info.dangerous_symbols.is_empty() {
@@ -155,9 +187,12 @@ impl TerminalReporter {
         } else {
             println!(
                 "  {}",
-                format!("{} dangerous symbol(s) found:", info.dangerous_symbols.len())
-                    .red()
-                    .bold()
+                format!(
+                    "{} dangerous symbol(s) found:",
+                    info.dangerous_symbols.len()
+                )
+                .red()
+                .bold()
             );
             for sym in &info.dangerous_symbols {
                 println!("    {}  {}", "▶".red(), sym.yellow());
@@ -170,7 +205,10 @@ impl TerminalReporter {
     // ── Footer ────────────────────────────────────────────────────────────────
 
     fn print_footer(&self) {
-        println!("{}", "  ────────────────────────────────────────────────────────".dimmed());
+        println!(
+            "{}",
+            "  ────────────────────────────────────────────────────────".dimmed()
+        );
         println!("  {}", "Analysis complete.".dimmed());
         println!();
     }

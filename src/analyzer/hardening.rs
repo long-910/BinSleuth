@@ -1,7 +1,7 @@
 use anyhow::Result;
-use object::{elf, FileKind, Object, ObjectSymbol};
-use object::read::elf::{Dyn, FileHeader, ProgramHeader};
 use object::Endianness;
+use object::read::elf::{Dyn, FileHeader, ProgramHeader};
+use object::{FileKind, Object, ObjectSymbol, elf};
 
 // ── Result types ─────────────────────────────────────────────────────────────
 
@@ -38,19 +38,44 @@ pub struct HardeningInfo {
 // ── Dangerous symbol lists ────────────────────────────────────────────────────
 
 const DANGEROUS_EXEC: &[&str] = &[
-    "system", "popen", "execve", "execl", "execle", "execlp", "execvp", "execvpe",
-    "posix_spawn", "ShellExecute", "ShellExecuteA", "ShellExecuteW", "WinExec",
-    "CreateProcessA", "CreateProcessW",
+    "system",
+    "popen",
+    "execve",
+    "execl",
+    "execle",
+    "execlp",
+    "execvp",
+    "execvpe",
+    "posix_spawn",
+    "ShellExecute",
+    "ShellExecuteA",
+    "ShellExecuteW",
+    "WinExec",
+    "CreateProcessA",
+    "CreateProcessW",
 ];
 
 const DANGEROUS_NET: &[&str] = &[
-    "connect", "socket", "WSAConnect", "WSASocket", "WSAStartup", "gethostbyname",
-    "getaddrinfo", "URLDownloadToFile", "WinHttpOpen", "InternetOpen",
-    "InternetOpenA", "InternetOpenW",
+    "connect",
+    "socket",
+    "WSAConnect",
+    "WSASocket",
+    "WSAStartup",
+    "gethostbyname",
+    "getaddrinfo",
+    "URLDownloadToFile",
+    "WinHttpOpen",
+    "InternetOpen",
+    "InternetOpenA",
+    "InternetOpenW",
 ];
 
 const DANGEROUS_MEM: &[&str] = &[
-    "mprotect", "VirtualProtect", "VirtualAlloc", "mmap", "NtAllocateVirtualMemory",
+    "mprotect",
+    "VirtualProtect",
+    "VirtualAlloc",
+    "mmap",
+    "NtAllocateVirtualMemory",
     "NtProtectVirtualMemory",
 ];
 
@@ -79,20 +104,33 @@ fn analyze_elf(data: &[u8]) -> Result<HardeningInfo> {
     let kind = FileKind::parse(data)?;
     let is_64 = kind == FileKind::Elf64;
 
-    let nx    = if is_64 { detect_nx_64(data)    } else { detect_nx_32(data)    };
-    let pie   = if is_64 { detect_pie_64(data)   } else { detect_pie_32(data)   };
-    let relro = if is_64 { detect_relro_64(data) } else { detect_relro_32(data) };
+    let nx = if is_64 {
+        detect_nx_64(data)
+    } else {
+        detect_nx_32(data)
+    };
+    let pie = if is_64 {
+        detect_pie_64(data)
+    } else {
+        detect_pie_32(data)
+    };
+    let relro = if is_64 {
+        detect_relro_64(data)
+    } else {
+        detect_relro_32(data)
+    };
 
     // Stack Canary: search for well-known canary symbols in symbol tables
-    let canary_syms = ["__stack_chk_fail", "__stack_chk_guard", "__stack_smash_handler"];
-    let stack_canary = if obj
-        .symbols()
-        .chain(obj.dynamic_symbols())
-        .any(|sym| {
-            sym.name()
-                .map(|n| canary_syms.iter().any(|&c| n.contains(c)))
-                .unwrap_or(false)
-        }) {
+    let canary_syms = [
+        "__stack_chk_fail",
+        "__stack_chk_guard",
+        "__stack_smash_handler",
+    ];
+    let stack_canary = if obj.symbols().chain(obj.dynamic_symbols()).any(|sym| {
+        sym.name()
+            .map(|n| canary_syms.iter().any(|&c| n.contains(c)))
+            .unwrap_or(false)
+    }) {
         CheckResult::Enabled
     } else {
         CheckResult::Disabled
@@ -100,7 +138,15 @@ fn analyze_elf(data: &[u8]) -> Result<HardeningInfo> {
 
     let dangerous_symbols = collect_dangerous_symbols(&obj);
 
-    Ok(HardeningInfo { format, architecture, nx, pie, relro, stack_canary, dangerous_symbols })
+    Ok(HardeningInfo {
+        format,
+        architecture,
+        nx,
+        pie,
+        relro,
+        stack_canary,
+        dangerous_symbols,
+    })
 }
 
 // ── NX helpers ────────────────────────────────────────────────────────────────
@@ -137,7 +183,10 @@ fn detect_nx_32(data: &[u8]) -> CheckResult {
     nx_from_phdrs(phdrs, endian)
 }
 
-fn nx_from_phdrs<P: ProgramHeader<Endian = Endianness>>(phdrs: &[P], endian: Endianness) -> CheckResult {
+fn nx_from_phdrs<P: ProgramHeader<Endian = Endianness>>(
+    phdrs: &[P],
+    endian: Endianness,
+) -> CheckResult {
     for phdr in phdrs {
         if phdr.p_type(endian) == elf::PT_GNU_STACK {
             // PF_X = 0x1 — if NOT set, the stack is non-executable → NX enabled
@@ -291,15 +340,16 @@ fn analyze_pe(data: &[u8]) -> Result<HardeningInfo> {
     let (nx, pie) = detect_pe_characteristics(data);
     let relro = CheckResult::NotApplicable;
 
-    let canary_syms = ["__security_cookie", "__security_check_cookie", "__stack_chk_fail"];
-    let stack_canary = if obj
-        .symbols()
-        .chain(obj.dynamic_symbols())
-        .any(|sym| {
-            sym.name()
-                .map(|n| canary_syms.iter().any(|&c| n.contains(c)))
-                .unwrap_or(false)
-        }) {
+    let canary_syms = [
+        "__security_cookie",
+        "__security_check_cookie",
+        "__stack_chk_fail",
+    ];
+    let stack_canary = if obj.symbols().chain(obj.dynamic_symbols()).any(|sym| {
+        sym.name()
+            .map(|n| canary_syms.iter().any(|&c| n.contains(c)))
+            .unwrap_or(false)
+    }) {
         CheckResult::Enabled
     } else {
         CheckResult::Disabled
@@ -307,7 +357,15 @@ fn analyze_pe(data: &[u8]) -> Result<HardeningInfo> {
 
     let dangerous_symbols = collect_dangerous_symbols(&obj);
 
-    Ok(HardeningInfo { format, architecture, nx, pie, relro, stack_canary, dangerous_symbols })
+    Ok(HardeningInfo {
+        format,
+        architecture,
+        nx,
+        pie,
+        relro,
+        stack_canary,
+        dangerous_symbols,
+    })
 }
 
 /// Extract DllCharacteristics from the PE optional header via raw bytes.
@@ -340,8 +398,16 @@ fn detect_pe_characteristics(data: &[u8]) -> (CheckResult, CheckResult) {
 
     // IMAGE_DLLCHARACTERISTICS_NX_COMPAT    = 0x0100
     // IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE = 0x0040 (PIE/ASLR)
-    let nx  = if dll_chars & 0x0100 != 0 { CheckResult::Enabled } else { CheckResult::Disabled };
-    let pie = if dll_chars & 0x0040 != 0 { CheckResult::Enabled } else { CheckResult::Disabled };
+    let nx = if dll_chars & 0x0100 != 0 {
+        CheckResult::Enabled
+    } else {
+        CheckResult::Disabled
+    };
+    let pie = if dll_chars & 0x0040 != 0 {
+        CheckResult::Enabled
+    } else {
+        CheckResult::Disabled
+    };
     (nx, pie)
 }
 
@@ -359,7 +425,11 @@ fn collect_dangerous_symbols(obj: &object::File) -> Vec<String> {
         .symbols()
         .chain(obj.dynamic_symbols())
         .filter_map(|sym| sym.name().ok())
-        .filter(|name| all_dangerous.iter().any(|&d| *name == d || name.contains(d)))
+        .filter(|name| {
+            all_dangerous
+                .iter()
+                .any(|&d| *name == d || name.contains(d))
+        })
         .map(|n| n.to_owned())
         .collect();
 

@@ -107,9 +107,18 @@ fn self_analysis_stdout_contains_sections() {
     assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
     // Every successful report should include these section headers
-    assert!(stdout.contains("Security Hardening"), "missing hardening section");
-    assert!(stdout.contains("Section Entropy"), "missing entropy section");
-    assert!(stdout.contains("Dangerous Symbol"), "missing symbol section");
+    assert!(
+        stdout.contains("Security Hardening"),
+        "missing hardening section"
+    );
+    assert!(
+        stdout.contains("Section Entropy"),
+        "missing entropy section"
+    );
+    assert!(
+        stdout.contains("Dangerous Symbol"),
+        "missing symbol section"
+    );
 }
 
 #[test]

@@ -26,7 +26,11 @@ impl SectionEntropy {
             };
             let entropy = calculate_entropy(section_data);
             let size = section_data.len() as u64;
-            results.push(SectionEntropy { name, entropy, size });
+            results.push(SectionEntropy {
+                name,
+                entropy,
+                size,
+            });
         }
 
         // If the object format exposes no sections (some PE/raw blobs),
@@ -105,7 +109,9 @@ mod tests {
     #[test]
     fn two_symbols_gives_one_bit() {
         // Equal mix of 0x00 and 0xFF → H = 1.0 bit
-        let data: Vec<u8> = (0..1024).map(|i| if i % 2 == 0 { 0x00 } else { 0xFF }).collect();
+        let data: Vec<u8> = (0..1024)
+            .map(|i| if i % 2 == 0 { 0x00 } else { 0xFF })
+            .collect();
         let h = calculate_entropy(&data);
         assert!((h - 1.0).abs() < 1e-10, "expected 1.0, got {h}");
     }
@@ -133,10 +139,10 @@ mod tests {
     #[test]
     fn monotone_increase_with_diversity() {
         // More distinct values → higher entropy
-        let one   = calculate_entropy(&[0u8; 256]);
-        let two   = calculate_entropy(&(0..256).map(|i| (i % 2)   as u8).collect::<Vec<_>>());
-        let four  = calculate_entropy(&(0..256).map(|i| (i % 4)   as u8).collect::<Vec<_>>());
-        let all   = calculate_entropy(&(0u8..=255).collect::<Vec<_>>());
+        let one = calculate_entropy(&[0u8; 256]);
+        let two = calculate_entropy(&(0..256).map(|i| (i % 2) as u8).collect::<Vec<_>>());
+        let four = calculate_entropy(&(0..256).map(|i| (i % 4) as u8).collect::<Vec<_>>());
+        let all = calculate_entropy(&(0u8..=255).collect::<Vec<_>>());
         assert!(one < two, "1 symbol < 2 symbols");
         assert!(two < four, "2 symbols < 4 symbols");
         assert!(four < all, "4 symbols < 256 symbols");

@@ -49,8 +49,8 @@ fn run() -> Result<()> {
         );
     }
 
-    let data = fs::read(path)
-        .with_context(|| format!("Failed to read file: '{}'", path.display()))?;
+    let data =
+        fs::read(path).with_context(|| format!("Failed to read file: '{}'", path.display()))?;
 
     if data.is_empty() {
         anyhow::bail!("File '{}' is empty.", path.display());
@@ -65,8 +65,12 @@ fn run() -> Result<()> {
     })?;
 
     // ── Entropy analysis ────────────────────────────────────────────────────
-    let entropies = SectionEntropy::analyze(&data)
-        .with_context(|| format!("Failed to compute section entropies for '{}'", path.display()))?;
+    let entropies = SectionEntropy::analyze(&data).with_context(|| {
+        format!(
+            "Failed to compute section entropies for '{}'",
+            path.display()
+        )
+    })?;
 
     // ── Report ──────────────────────────────────────────────────────────────
     let reporter = TerminalReporter::new(cli.verbose);
