@@ -7,8 +7,8 @@ use colored::Colorize;
 use std::fs;
 use std::path::PathBuf;
 
-use analyzer::{entropy::SectionEntropy, hardening::HardeningInfo};
 use analyzer::hardening::CheckResult;
+use analyzer::{entropy::SectionEntropy, hardening::HardeningInfo};
 use report::terminal::TerminalReporter;
 
 /// BinSleuth — ELF/PE binary security analyzer

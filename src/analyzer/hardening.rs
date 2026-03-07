@@ -460,8 +460,7 @@ fn detect_pe_stripped(data: &[u8], obj: &object::File) -> CheckResult {
     if data.len() < 0x40 {
         return CheckResult::Enabled;
     }
-    let e_lfanew =
-        u32::from_le_bytes([data[0x3c], data[0x3d], data[0x3e], data[0x3f]]) as usize;
+    let e_lfanew = u32::from_le_bytes([data[0x3c], data[0x3d], data[0x3e], data[0x3f]]) as usize;
     if data.len() < e_lfanew + 4 || &data[e_lfanew..e_lfanew + 4] != b"PE\0\0" {
         return CheckResult::Enabled;
     }
@@ -471,7 +470,7 @@ fn detect_pe_stripped(data: &[u8], obj: &object::File) -> CheckResult {
     }
     let magic = u16::from_le_bytes([data[opt_offset], data[opt_offset + 1]]);
     let debug_entry_offset = match magic {
-        0x010b => opt_offset + 96 + 48, // PE32:  DataDirectory + entry 6
+        0x010b => opt_offset + 96 + 48,  // PE32:  DataDirectory + entry 6
         0x020b => opt_offset + 112 + 48, // PE32+: DataDirectory + entry 6
         _ => return CheckResult::Enabled,
     };

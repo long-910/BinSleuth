@@ -165,8 +165,7 @@ fn json_output_is_valid_json() {
     let out = binsleuth().arg("--json").arg(bin).output().unwrap();
     assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
-    serde_json::from_str::<serde_json::Value>(&stdout)
-        .expect("--json output must be valid JSON");
+    serde_json::from_str::<serde_json::Value>(&stdout).expect("--json output must be valid JSON");
 }
 
 #[test]
@@ -191,7 +190,15 @@ fn json_hardening_contains_expected_fields() {
     let stdout = String::from_utf8_lossy(&out.stdout);
     let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     let h = &v["hardening"];
-    for field in &["nx", "pie", "relro", "stack_canary", "stripped", "format", "architecture"] {
+    for field in &[
+        "nx",
+        "pie",
+        "relro",
+        "stack_canary",
+        "stripped",
+        "format",
+        "architecture",
+    ] {
         assert!(h.get(field).is_some(), "missing hardening field '{field}'");
     }
 }
