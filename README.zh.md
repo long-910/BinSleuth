@@ -6,12 +6,13 @@
 毫秒级检测 ELF 和 PE 文件的安全加固配置与加密/混淆特征。
 
 [![Crates.io](https://img.shields.io/crates/v/binsleuth.svg)](https://crates.io/crates/binsleuth)
+[![Downloads](https://img.shields.io/crates/d/binsleuth.svg)](https://crates.io/crates/binsleuth)
 [![docs.rs](https://docs.rs/binsleuth/badge.svg)](https://docs.rs/binsleuth)
 [![CI](https://github.com/long-910/BinSleuth/actions/workflows/ci.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/ci.yml)
 [![Release](https://github.com/long-910/BinSleuth/actions/workflows/release.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/rustc-1.85%2B-orange.svg)](https://www.rust-lang.org)
-[![Tests](https://img.shields.io/badge/tests-32%20passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-42%20passing-brightgreen.svg)](#)
 
 **Language / 言語 / 语言:**
 [English](README.md) · [日本語](README.ja.md) · [中文](README.zh.md)
@@ -43,6 +44,7 @@ BinSleuth 是一款用 **Rust 编写的安全导向静态二进制分析工具**
 | **PIE** | 位置无关可执行文件 — 启用 ASLR 地址随机化 | `ET_DYN` | `DYNAMIC_BASE` |
 | **RELRO** | 重定位表只读化 — 防止 GOT 覆盖攻击 | `PT_GNU_RELRO` + `BIND_NOW` | N/A |
 | **Stack Canary** | 检测缓冲区溢出保护符号是否存在 | `__stack_chk_fail` | `__security_cookie` |
+| **Stripped** | 调试符号 / DWARF 信息已移除 — 降低逆向工程风险 | `.debug_*` 节区 | 调试目录 |
 
 每项检测结果为以下之一：**Enabled（已启用）** / **Partial（部分启用）** / **Disabled（未启用）** / **N/A（不适用）**
 
@@ -106,6 +108,9 @@ binsleuth [OPTIONS] <FILE>
 
 选项:
   -v, --verbose  显示所有节区，包括熵值正常的节区
+      --json     以 JSON 格式输出，替代彩色终端报告
+      --strict   若加固保护缺失或检测到危险符号，则以退出码 2 退出
+                 （适用于 CI 流水线）
   -h, --help     显示帮助信息
   -V, --version  显示版本号
 ```
@@ -122,6 +127,19 @@ binsleuth ./suspicious_binary
 
 ```bash
 binsleuth --verbose /usr/bin/python3
+```
+
+### JSON 输出（脚本 / CI 集成）
+
+```bash
+binsleuth --json /usr/bin/ls | jq '.hardening.nx'
+```
+
+### CI 流水线 — 加固检查失败时中断
+
+```bash
+binsleuth --strict ./myapp && echo "Hardening OK" || echo "Hardening FAILED"
+# 退出码 0 = 正常，2 = 存在加固问题，1 = 解析错误
 ```
 
 ### 示例输出 — 安全加固的二进制文件
@@ -141,6 +159,7 @@ binsleuth --verbose /usr/bin/python3
   [ ENABLED  ]  PIE (ASLR-compatible)
   [ ENABLED  ]  RELRO (Read-Only Relocations)
   [ ENABLED  ]  Stack Canary
+  [ ENABLED  ]  Debug Symbols Stripped
 
   ── Section Entropy ─────────────────────────────────────
 
@@ -227,6 +246,7 @@ BinSleuth/
 |------|------|
 | `0` | 分析成功完成 |
 | `1` | 文件未找到 / 解析错误 / 不支持的格式 |
+| `2` | `--strict` 模式：分析成功但检测到加固问题 |
 
 ---
 
@@ -249,13 +269,13 @@ cargo clippy -- -D warnings
 cargo fmt --check
 ```
 
-测试套件包含 **22 个单元测试** 和 **10 个集成测试**：
+测试套件包含 **22 个单元测试** 和 **20 个集成测试**：
 
 | 模块 | 测试数量 | 覆盖范围 |
 |------|---------|---------|
 | `analyzer::entropy` | 9 | 香农公式、边界值、单调性 |
 | `analyzer::hardening` | 13 | PE 头解析、RELRO 状态、ELF 自分析 |
-| `tests::cli` | 10 | CLI 参数、错误处理、自分析、详细模式 |
+| `tests::cli` | 20 | CLI 参数、JSON 输出、strict 模式、stripped 检测、错误处理 |
 
 ---
 
@@ -275,12 +295,13 @@ cargo fmt --check
 
 ## 开发路线图
 
-- [ ] JSON / SARIF 输出模式（`--output json`）
+- [x] JSON 输出模式（`--json`）
+- [x] DWARF / PDB 调试信息 / stripped 检测
+- [x] CI 流水线 strict 模式（`--strict`，退出码 2）
+- [ ] SARIF 输出格式
 - [ ] macOS Mach-O 格式支持
 - [ ] 两个二进制文件的导入表差异对比（`binsleuth diff a.out b.out`）
-- [ ] DWARF / PDB 调试信息检测
 - [ ] Yara 风格的字节模式匹配
-- [ ] GitHub Actions CI 及 crates.io 自动发布
 
 ---
 

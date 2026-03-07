@@ -1,8 +1,9 @@
 use anyhow::Result;
 use object::{Object, ObjectSection};
+use serde::Serialize;
 
 /// Shannon entropy result for a single binary section.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SectionEntropy {
     /// Section name (e.g. `.text`, `.data`, `UPX0`)
     pub name: String,
