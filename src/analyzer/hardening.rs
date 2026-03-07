@@ -1,7 +1,8 @@
 use anyhow::Result;
 use object::Endianness;
 use object::read::elf::{Dyn, FileHeader, ProgramHeader};
-use object::{FileKind, Object, ObjectSymbol, elf};
+use object::{FileKind, Object, ObjectSection, ObjectSymbol, elf};
+use serde::Serialize;
 
 // ── Result types ─────────────────────────────────────────────────────────────
 
@@ -18,8 +19,19 @@ pub enum CheckResult {
     NotApplicable,
 }
 
+impl Serialize for CheckResult {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            CheckResult::Enabled => serializer.serialize_str("enabled"),
+            CheckResult::Disabled => serializer.serialize_str("disabled"),
+            CheckResult::NotApplicable => serializer.serialize_str("n/a"),
+            CheckResult::Partial(msg) => serializer.serialize_str(&format!("partial: {msg}")),
+        }
+    }
+}
+
 /// All hardening checks collected from one binary.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct HardeningInfo {
     pub format: String,
     pub architecture: String,
@@ -31,6 +43,8 @@ pub struct HardeningInfo {
     pub relro: CheckResult,
     /// Stack canary — `__stack_chk_fail` symbol present
     pub stack_canary: CheckResult,
+    /// Debug symbols stripped (Enabled = stripped = good; Disabled = debug info present)
+    pub stripped: CheckResult,
     /// Dangerous symbols found in the import/symbol table
     pub dangerous_symbols: Vec<String>,
 }
@@ -138,6 +152,16 @@ fn analyze_elf(data: &[u8]) -> Result<HardeningInfo> {
 
     let dangerous_symbols = collect_dangerous_symbols(&obj);
 
+    // Stripped: check for embedded DWARF debug sections
+    let has_debug = obj
+        .sections()
+        .any(|s| s.name().map(|n| n.starts_with(".debug_")).unwrap_or(false));
+    let stripped = if has_debug {
+        CheckResult::Disabled
+    } else {
+        CheckResult::Enabled
+    };
+
     Ok(HardeningInfo {
         format,
         architecture,
@@ -145,6 +169,7 @@ fn analyze_elf(data: &[u8]) -> Result<HardeningInfo> {
         pie,
         relro,
         stack_canary,
+        stripped,
         dangerous_symbols,
     })
 }
@@ -357,6 +382,9 @@ fn analyze_pe(data: &[u8]) -> Result<HardeningInfo> {
 
     let dangerous_symbols = collect_dangerous_symbols(&obj);
 
+    // Stripped: check PE debug directory and embedded .debug_* sections
+    let stripped = detect_pe_stripped(data, &obj);
+
     Ok(HardeningInfo {
         format,
         architecture,
@@ -364,6 +392,7 @@ fn analyze_pe(data: &[u8]) -> Result<HardeningInfo> {
         pie,
         relro,
         stack_canary,
+        stripped,
         dangerous_symbols,
     })
 }
@@ -412,6 +441,55 @@ fn detect_pe_characteristics(data: &[u8]) -> (CheckResult, CheckResult) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Detect whether a PE binary has debug information (via debug directory or .debug_* sections).
+/// Returns Enabled (stripped) or Disabled (debug info present).
+fn detect_pe_stripped(data: &[u8], obj: &object::File) -> CheckResult {
+    // Check for embedded .debug_* sections (MinGW/GCC DWARF-in-PE)
+    let has_debug_sections = obj
+        .sections()
+        .any(|s| s.name().map(|n| n.starts_with(".debug_")).unwrap_or(false));
+    if has_debug_sections {
+        return CheckResult::Disabled;
+    }
+
+    // Check PE debug directory (IMAGE_DIRECTORY_ENTRY_DEBUG, index 6)
+    // DataDirectory for PE32  starts at opt_offset + 96
+    // DataDirectory for PE32+ starts at opt_offset + 112
+    // Each entry is 8 bytes; entry 6 is at DataDirectory + 48
+    if data.len() < 0x40 {
+        return CheckResult::Enabled;
+    }
+    let e_lfanew =
+        u32::from_le_bytes([data[0x3c], data[0x3d], data[0x3e], data[0x3f]]) as usize;
+    if data.len() < e_lfanew + 4 || &data[e_lfanew..e_lfanew + 4] != b"PE\0\0" {
+        return CheckResult::Enabled;
+    }
+    let opt_offset = e_lfanew + 24;
+    if data.len() < opt_offset + 2 {
+        return CheckResult::Enabled;
+    }
+    let magic = u16::from_le_bytes([data[opt_offset], data[opt_offset + 1]]);
+    let debug_entry_offset = match magic {
+        0x010b => opt_offset + 96 + 48, // PE32:  DataDirectory + entry 6
+        0x020b => opt_offset + 112 + 48, // PE32+: DataDirectory + entry 6
+        _ => return CheckResult::Enabled,
+    };
+    if data.len() < debug_entry_offset + 4 {
+        return CheckResult::Enabled;
+    }
+    let rva = u32::from_le_bytes([
+        data[debug_entry_offset],
+        data[debug_entry_offset + 1],
+        data[debug_entry_offset + 2],
+        data[debug_entry_offset + 3],
+    ]);
+    if rva != 0 {
+        CheckResult::Disabled // debug directory present → not stripped
+    } else {
+        CheckResult::Enabled
+    }
+}
 
 fn collect_dangerous_symbols(obj: &object::File) -> Vec<String> {
     let all_dangerous: Vec<&str> = DANGEROUS_EXEC

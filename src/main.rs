@@ -8,6 +8,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use analyzer::{entropy::SectionEntropy, hardening::HardeningInfo};
+use analyzer::hardening::CheckResult;
 use report::terminal::TerminalReporter;
 
 /// BinSleuth — ELF/PE binary security analyzer
@@ -19,7 +20,8 @@ use report::terminal::TerminalReporter;
     long_about = "BinSleuth inspects compiled binaries for:\n\
                   • Security hardening flags (NX, PIE, RELRO, Stack Canary)\n\
                   • Shannon entropy per section (detects packing/encryption)\n\
-                  • Dangerous symbol usage (system(), execve(), mprotect(), …)"
+                  • Dangerous symbol usage (system(), execve(), mprotect(), …)\n\
+                  • Debug symbol / DWARF info presence"
 )]
 struct Cli {
     /// Path to the ELF or PE binary to analyze
@@ -29,16 +31,31 @@ struct Cli {
     /// Show all sections, even those with normal entropy
     #[arg(short, long)]
     verbose: bool,
+
+    /// Output results as JSON instead of the colored terminal report
+    #[arg(long)]
+    json: bool,
+
+    /// Exit with code 2 if any hardening protection is missing or dangerous symbols are found
+    #[arg(long)]
+    strict: bool,
 }
 
 fn main() {
-    if let Err(e) = run() {
-        eprintln!("{}: {}", "error".red().bold(), e);
-        std::process::exit(1);
+    match run() {
+        Err(e) => {
+            eprintln!("{}: {}", "error".red().bold(), e);
+            std::process::exit(1);
+        }
+        Ok(strict_fail) => {
+            if strict_fail {
+                std::process::exit(2);
+            }
+        }
     }
 }
 
-fn run() -> Result<()> {
+fn run() -> Result<bool> {
     let cli = Cli::parse();
 
     let path = &cli.path;
@@ -73,8 +90,23 @@ fn run() -> Result<()> {
     })?;
 
     // ── Report ──────────────────────────────────────────────────────────────
-    let reporter = TerminalReporter::new(cli.verbose);
-    reporter.print_report(path, &hardening, &entropies);
+    if cli.json {
+        report::json::print_json(path, &hardening, &entropies);
+    } else {
+        let reporter = TerminalReporter::new(cli.verbose);
+        reporter.print_report(path, &hardening, &entropies);
+    }
 
-    Ok(())
+    // ── Strict mode ─────────────────────────────────────────────────────────
+    let strict_fail = cli.strict && has_security_issues(&hardening);
+    Ok(strict_fail)
+}
+
+/// Returns true if the binary has any hardening issues that should fail strict mode.
+fn has_security_issues(info: &HardeningInfo) -> bool {
+    info.nx == CheckResult::Disabled
+        || info.pie == CheckResult::Disabled
+        || info.stack_canary == CheckResult::Disabled
+        || info.relro == CheckResult::Disabled
+        || !info.dangerous_symbols.is_empty()
 }

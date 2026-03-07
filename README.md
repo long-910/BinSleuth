@@ -11,7 +11,7 @@ Inspect ELF & PE binaries for hardening flags and detect packed/encrypted sectio
 [![Release](https://github.com/long-910/BinSleuth/actions/workflows/release.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/rustc-1.85%2B-orange.svg)](https://www.rust-lang.org)
-[![Tests](https://img.shields.io/badge/tests-32%20passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-42%20passing-brightgreen.svg)](#)
 
 **Language / 言語 / 语言:**
 [English](README.md) · [日本語](README.ja.md) · [中文](README.zh.md)
@@ -43,6 +43,7 @@ It is designed for **security engineers, malware researchers, and developers** w
 | **PIE** | Position-Independent Executable — enables ASLR | `ET_DYN` | `DYNAMIC_BASE` |
 | **RELRO** | Read-Only Relocations — prevents GOT overwrite | `PT_GNU_RELRO` + `BIND_NOW` | N/A |
 | **Stack Canary** | Buffer-overflow tripwire symbol present | `__stack_chk_fail` | `__security_cookie` |
+| **Stripped** | Debug symbols / DWARF info absent — limits reverse-engineering | `.debug_*` sections | Debug directory |
 
 Each check reports one of: **Enabled** / **Partial** / **Disabled** / **N/A**
 
@@ -106,6 +107,9 @@ Arguments:
 
 Options:
   -v, --verbose  Show all sections, even those with normal entropy
+      --json     Output results as JSON instead of the colored terminal report
+      --strict   Exit with code 2 if any hardening protection is missing or
+                 dangerous symbols are found (useful in CI pipelines)
   -h, --help     Print help
   -V, --version  Print version
 ```
@@ -122,6 +126,19 @@ binsleuth ./suspicious_binary
 
 ```bash
 binsleuth --verbose /usr/bin/python3
+```
+
+### JSON output (for scripting / CI integration)
+
+```bash
+binsleuth --json /usr/bin/ls | jq '.hardening.nx'
+```
+
+### CI pipeline — fail if hardening issues are found
+
+```bash
+binsleuth --strict ./myapp && echo "Hardening OK" || echo "Hardening FAILED"
+# Exit 0 = all good, Exit 2 = hardening issues found, Exit 1 = parse error
 ```
 
 ### Example output — hardened binary
@@ -141,6 +158,7 @@ binsleuth --verbose /usr/bin/python3
   [ ENABLED  ]  PIE (ASLR-compatible)
   [ ENABLED  ]  RELRO (Read-Only Relocations)
   [ ENABLED  ]  Stack Canary
+  [ ENABLED  ]  Debug Symbols Stripped
 
   ── Section Entropy ─────────────────────────────────────
 
@@ -227,6 +245,7 @@ BinSleuth/
 |------|---------|
 | `0` | Analysis completed successfully |
 | `1` | File not found, parse error, or unsupported format |
+| `2` | `--strict` mode: analysis succeeded but hardening issues were found |
 
 ---
 
@@ -249,13 +268,13 @@ cargo clippy -- -D warnings
 cargo fmt --check
 ```
 
-The test suite includes **22 unit tests** and **10 integration tests**:
+The test suite includes **22 unit tests** and **20 integration tests**:
 
 | Module | Tests | Coverage |
 |--------|-------|---------|
 | `analyzer::entropy` | 9 | Shannon formula, edge cases, monotonicity |
 | `analyzer::hardening` | 13 | PE header parsing, RELRO states, ELF self-analysis |
-| `tests::cli` | 10 | CLI flags, error handling, self-analysis, verbose mode |
+| `tests::cli` | 20 | CLI flags, JSON output, strict mode, stripped detection, error handling |
 
 ---
 
@@ -275,12 +294,13 @@ Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details *(coming soon)*.
 
 ## Roadmap
 
-- [ ] JSON / SARIF output mode (`--output json`)
+- [x] JSON output mode (`--json`)
+- [x] DWARF / PDB debug-info / stripped detection
+- [x] Strict mode for CI pipelines (`--strict`, exit code 2)
+- [ ] SARIF output format
 - [ ] macOS Mach-O support
 - [ ] Import table diff between two binaries (`binsleuth diff a.out b.out`)
-- [ ] DWARF / PDB debug-info presence detection
 - [ ] Yara-rule-style byte-pattern matching
-- [ ] GitHub Actions CI badge & automated crates.io release
 
 ---
 

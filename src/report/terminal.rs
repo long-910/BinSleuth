@@ -75,6 +75,7 @@ impl TerminalReporter {
         self.print_check("PIE (ASLR-compatible)", &info.pie);
         self.print_check("RELRO (Read-Only Relocations)", &info.relro);
         self.print_check("Stack Canary", &info.stack_canary);
+        self.print_check("Debug Symbols Stripped", &info.stripped);
 
         println!();
     }
