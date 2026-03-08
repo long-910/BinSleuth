@@ -24,9 +24,16 @@ exclude = [
     "CLAUDE.md",
 ]
 
+[lib]
+name = "binsleuth"
+path = "src/lib.rs"
+
 [[bin]]
 name = "binsleuth"
 path = "src/main.rs"
+
+[package.metadata.docs.rs]
+all-features = true
 
 [dependencies]
 object       = { version = "0.38", default-features = false, features = ["read", "elf", "pe"] }

@@ -1,15 +1,13 @@
-mod analyzer;
-mod report;
-
 use anyhow::{Context, Result};
 use clap::Parser;
 use colored::Colorize;
 use std::fs;
 use std::path::PathBuf;
 
-use analyzer::hardening::CheckResult;
-use analyzer::{entropy::SectionEntropy, hardening::HardeningInfo};
-use report::terminal::TerminalReporter;
+use binsleuth::analyzer::entropy::SectionEntropy;
+use binsleuth::analyzer::hardening::{CheckResult, HardeningInfo};
+use binsleuth::report;
+use binsleuth::report::terminal::TerminalReporter;
 
 /// BinSleuth — ELF/PE binary security analyzer
 #[derive(Parser, Debug)]
