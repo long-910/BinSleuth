@@ -12,7 +12,7 @@
 [![Release](https://github.com/long-910/BinSleuth/actions/workflows/release.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/rustc-1.85%2B-orange.svg)](https://www.rust-lang.org)
-[![Tests](https://img.shields.io/badge/tests-42%20passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-43%20passing-brightgreen.svg)](#)
 
 **Language / 言語 / 语言:**
 [English](README.md) · [日本語](README.ja.md) · [中文](README.zh.md)
@@ -198,24 +198,61 @@ binsleuth --strict ./myapp && echo "Hardening OK" || echo "Hardening FAILED"
 
 ---
 
+## ライブラリとして使う
+
+`binsleuth` は CLI に加えて、Rust ライブラリクレートとしても利用できます。
+
+`Cargo.toml` に追加してください：
+
+```toml
+[dependencies]
+binsleuth = "0.2"
+```
+
+パブリック API の使用例：
+
+```rust
+use binsleuth::analyzer::hardening::HardeningInfo;
+use binsleuth::analyzer::entropy::SectionEntropy;
+
+let data = std::fs::read("path/to/binary")?;
+
+let hardening = HardeningInfo::analyze(&data)?;
+println!("PIE: {:?}", hardening.pie);
+
+let entropies = SectionEntropy::analyze(&data)?;
+for sec in &entropies {
+    println!("{}: entropy={:.4}", sec.name, sec.entropy);
+}
+```
+
+完全な実行例は [docs.rs の API ドキュメント](https://docs.rs/binsleuth) と [`examples/basic.rs`](examples/basic.rs) を参照してください。
+
+---
+
 ## プロジェクト構成
 
 ```
 BinSleuth/
 ├── Cargo.toml
-├── README.md           ← 英語（デフォルト）
-├── README.ja.md        ← 日本語
-├── README.zh.md        ← 中国語（簡体字）
+├── README.md              ← 英語（デフォルト）
+├── README.ja.md           ← 日本語
+├── README.zh.md           ← 中国語（簡体字）
+├── CHANGELOG.md
 ├── LICENSE
+├── examples/
+│   └── basic.rs           # ライブラリ使用例
 └── src/
-    ├── main.rs                  # CLI エントリーポイント（clap）
+    ├── lib.rs             # ライブラリクレートのルート（パブリック API）
+    ├── main.rs            # CLI エントリーポイント（clap）
     ├── analyzer/
     │   ├── mod.rs
-    │   ├── entropy.rs           # シャノンエントロピー + SectionEntropy
-    │   └── hardening.rs         # NX / PIE / RELRO / Canary / シンボル
+    │   ├── entropy.rs     # シャノンエントロピー + SectionEntropy
+    │   └── hardening.rs   # NX / PIE / RELRO / Canary / シンボル
     └── report/
         ├── mod.rs
-        └── terminal.rs          # カラーターミナル出力
+        ├── terminal.rs    # カラーターミナル出力
+        └── json.rs        # JSON 出力シリアライザ
 ```
 
 ### 主要な型
@@ -269,13 +306,14 @@ cargo clippy -- -D warnings
 cargo fmt --check
 ```
 
-テストスイートは **ユニットテスト 22 件** と **統合テスト 20 件** で構成されています。
+テストスイートは **ユニットテスト 22 件**・**統合テスト 20 件**・**ドックテスト 1 件** で構成されています。
 
 | モジュール | テスト数 | カバー範囲 |
 |-----------|---------|-----------|
 | `analyzer::entropy` | 9 | シャノン公式、境界値、単調性 |
 | `analyzer::hardening` | 13 | PE ヘッダー解析、RELRO 状態、ELF 自己解析 |
 | `tests::cli` | 20 | CLI フラグ、JSON 出力、strict モード、stripped 検出、エラー処理 |
+| `lib.rs`（ドックテスト） | 1 | ライブラリ API スモークテスト |
 
 ---
 
