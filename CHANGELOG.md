@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-03-09
+
+### Added
+
+- `src/lib.rs`: library crate root — `binsleuth` is now usable as a Rust library in addition to a CLI tool
+- `[lib]` target declaration in `Cargo.toml` — fixes `error: no library targets found` on docs.rs
+- `[package.metadata.docs.rs]` with `all-features = true` — enables proper docs.rs build configuration
+- `examples/basic.rs`: runnable example demonstrating `HardeningInfo::analyze` and `SectionEntropy::analyze` via the public library API
+- Library usage section in README (EN / JA / ZH)
+
+### Fixed
+
+- docs.rs CI was failing with `error: no library targets found in package 'binsleuth'` because the crate had no library target; adding `src/lib.rs` resolves this
+
+### Changed
+
+- `src/main.rs` now imports from the `binsleuth` library crate (`use binsleuth::...`) instead of declaring inline modules
+
 ## [0.2.0] - 2026-03-08
 
 ### Added
@@ -34,5 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 32 unit + integration tests covering all analyzers and CLI edge cases
 - Rust edition 2024 with MSRV 1.85
 
-[Unreleased]: https://github.com/long-910/BinSleuth/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/long-910/BinSleuth/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/long-910/BinSleuth/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/long-910/BinSleuth/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/long-910/BinSleuth/releases/tag/v0.1.0

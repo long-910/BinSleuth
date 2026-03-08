@@ -12,7 +12,7 @@ Inspect ELF & PE binaries for hardening flags and detect packed/encrypted sectio
 [![Release](https://github.com/long-910/BinSleuth/actions/workflows/release.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/rustc-1.85%2B-orange.svg)](https://www.rust-lang.org)
-[![Tests](https://img.shields.io/badge/tests-42%20passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-43%20passing-brightgreen.svg)](#)
 
 **Language / 言語 / 语言:**
 [English](README.md) · [日本語](README.ja.md) · [中文](README.zh.md)
@@ -198,24 +198,61 @@ binsleuth --strict ./myapp && echo "Hardening OK" || echo "Hardening FAILED"
 
 ---
 
+## Library Usage
+
+`binsleuth` can be used as a Rust library crate in addition to the CLI.
+
+Add to your `Cargo.toml`:
+
+```toml
+[dependencies]
+binsleuth = "0.2"
+```
+
+Then use the public API:
+
+```rust
+use binsleuth::analyzer::hardening::HardeningInfo;
+use binsleuth::analyzer::entropy::SectionEntropy;
+
+let data = std::fs::read("path/to/binary")?;
+
+let hardening = HardeningInfo::analyze(&data)?;
+println!("PIE: {:?}", hardening.pie);
+
+let entropies = SectionEntropy::analyze(&data)?;
+for sec in &entropies {
+    println!("{}: entropy={:.4}", sec.name, sec.entropy);
+}
+```
+
+See the [API documentation on docs.rs](https://docs.rs/binsleuth) and [`examples/basic.rs`](examples/basic.rs) for a complete runnable example.
+
+---
+
 ## Project Structure
 
 ```
 BinSleuth/
 ├── Cargo.toml
-├── README.md           ← English (default)
-├── README.ja.md        ← Japanese
-├── README.zh.md        ← Chinese (Simplified)
+├── README.md              ← English (default)
+├── README.ja.md           ← Japanese
+├── README.zh.md           ← Chinese (Simplified)
+├── CHANGELOG.md
 ├── LICENSE
+├── examples/
+│   └── basic.rs           # Library usage example
 └── src/
-    ├── main.rs                  # CLI entry point (clap)
+    ├── lib.rs             # Library crate root (public API)
+    ├── main.rs            # CLI entry point (clap)
     ├── analyzer/
     │   ├── mod.rs
-    │   ├── entropy.rs           # Shannon entropy + SectionEntropy
-    │   └── hardening.rs         # NX / PIE / RELRO / Canary / symbols
+    │   ├── entropy.rs     # Shannon entropy + SectionEntropy
+    │   └── hardening.rs   # NX / PIE / RELRO / Canary / symbols
     └── report/
         ├── mod.rs
-        └── terminal.rs          # Colored terminal renderer
+        ├── terminal.rs    # Colored terminal renderer
+        └── json.rs        # JSON output serializer
 ```
 
 ### Key types
@@ -269,13 +306,14 @@ cargo clippy -- -D warnings
 cargo fmt --check
 ```
 
-The test suite includes **22 unit tests** and **20 integration tests**:
+The test suite includes **22 unit tests**, **20 integration tests**, and **1 doc test**:
 
 | Module | Tests | Coverage |
 |--------|-------|---------|
 | `analyzer::entropy` | 9 | Shannon formula, edge cases, monotonicity |
 | `analyzer::hardening` | 13 | PE header parsing, RELRO states, ELF self-analysis |
 | `tests::cli` | 20 | CLI flags, JSON output, strict mode, stripped detection, error handling |
+| `lib.rs` (doc test) | 1 | Library API smoke test |
 
 ---
 

@@ -12,7 +12,7 @@
 [![Release](https://github.com/long-910/BinSleuth/actions/workflows/release.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/rustc-1.85%2B-orange.svg)](https://www.rust-lang.org)
-[![Tests](https://img.shields.io/badge/tests-42%20passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-43%20passing-brightgreen.svg)](#)
 
 **Language / 言語 / 语言:**
 [English](README.md) · [日本語](README.ja.md) · [中文](README.zh.md)
@@ -198,24 +198,61 @@ binsleuth --strict ./myapp && echo "Hardening OK" || echo "Hardening FAILED"
 
 ---
 
+## 作为库使用
+
+`binsleuth` 除 CLI 外，也可作为 Rust 库 crate 使用。
+
+在 `Cargo.toml` 中添加：
+
+```toml
+[dependencies]
+binsleuth = "0.2"
+```
+
+使用公开 API：
+
+```rust
+use binsleuth::analyzer::hardening::HardeningInfo;
+use binsleuth::analyzer::entropy::SectionEntropy;
+
+let data = std::fs::read("path/to/binary")?;
+
+let hardening = HardeningInfo::analyze(&data)?;
+println!("PIE: {:?}", hardening.pie);
+
+let entropies = SectionEntropy::analyze(&data)?;
+for sec in &entropies {
+    println!("{}: entropy={:.4}", sec.name, sec.entropy);
+}
+```
+
+完整示例请参阅 [docs.rs API 文档](https://docs.rs/binsleuth) 和 [`examples/basic.rs`](examples/basic.rs)。
+
+---
+
 ## 项目结构
 
 ```
 BinSleuth/
 ├── Cargo.toml
-├── README.md           ← 英文（默认）
-├── README.ja.md        ← 日文
-├── README.zh.md        ← 中文（简体）
+├── README.md              ← 英文（默认）
+├── README.ja.md           ← 日文
+├── README.zh.md           ← 中文（简体）
+├── CHANGELOG.md
 ├── LICENSE
+├── examples/
+│   └── basic.rs           # 库使用示例
 └── src/
-    ├── main.rs                  # CLI 入口（clap）
+    ├── lib.rs             # 库 crate 根（公开 API）
+    ├── main.rs            # CLI 入口（clap）
     ├── analyzer/
     │   ├── mod.rs
-    │   ├── entropy.rs           # 香农熵 + SectionEntropy
-    │   └── hardening.rs         # NX / PIE / RELRO / Canary / 符号检测
+    │   ├── entropy.rs     # 香农熵 + SectionEntropy
+    │   └── hardening.rs   # NX / PIE / RELRO / Canary / 符号检测
     └── report/
         ├── mod.rs
-        └── terminal.rs          # 彩色终端输出渲染
+        ├── terminal.rs    # 彩色终端输出渲染
+        └── json.rs        # JSON 输出序列化
 ```
 
 ### 核心类型
@@ -269,13 +306,14 @@ cargo clippy -- -D warnings
 cargo fmt --check
 ```
 
-测试套件包含 **22 个单元测试** 和 **20 个集成测试**：
+测试套件包含 **22 个单元测试**、**20 个集成测试** 和 **1 个文档测试**：
 
 | 模块 | 测试数量 | 覆盖范围 |
 |------|---------|---------|
 | `analyzer::entropy` | 9 | 香农公式、边界值、单调性 |
 | `analyzer::hardening` | 13 | PE 头解析、RELRO 状态、ELF 自分析 |
 | `tests::cli` | 20 | CLI 参数、JSON 输出、strict 模式、stripped 检测、错误处理 |
+| `lib.rs`（文档测试） | 1 | 库 API 冒烟测试 |
 
 ---
 
