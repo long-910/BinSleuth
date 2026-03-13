@@ -3,7 +3,7 @@
 //! Binary inspection and security analysis toolkit for ELF and PE binaries.
 //!
 //! BinSleuth detects:
-//! - Security hardening flags (NX, PIE, RELRO, Stack Canary, debug-symbol stripping)
+//! - Security hardening flags (NX, PIE, RELRO, Stack Canary, FORTIFY_SOURCE, RPATH/RUNPATH, debug-symbol stripping)
 //! - Shannon entropy per section (detects packing/encryption)
 //! - Dangerous symbol usage (`system()`, `execve()`, `mprotect()`, …)
 //!
