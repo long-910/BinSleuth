@@ -195,6 +195,8 @@ fn json_hardening_contains_expected_fields() {
         "pie",
         "relro",
         "stack_canary",
+        "fortify_source",
+        "rpath",
         "stripped",
         "format",
         "architecture",
