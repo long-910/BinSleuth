@@ -5,6 +5,8 @@
 **A fast, zero-dependency CLI tool for static binary security analysis.**
 Inspect ELF & PE binaries for hardening flags and detect packed/encrypted sections — in milliseconds.
 
+![BinSleuth social preview](https://repository-images.githubusercontent.com/1174345949/ddfc9174-be34-4b79-931d-1b8d3e71fcdf)
+
 [![Crates.io](https://img.shields.io/crates/v/binsleuth.svg)](https://crates.io/crates/binsleuth)
 [![Downloads](https://img.shields.io/crates/d/binsleuth.svg)](https://crates.io/crates/binsleuth)
 [![docs.rs](https://docs.rs/binsleuth/badge.svg)](https://docs.rs/binsleuth)
@@ -13,6 +15,8 @@ Inspect ELF & PE binaries for hardening flags and detect packed/encrypted sectio
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/rustc-1.85%2B-orange.svg)](https://www.rust-lang.org)
 [![Tests](https://img.shields.io/badge/tests-45%20passing-brightgreen.svg)](#)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/long-910?label=Sponsor&logo=githubsponsors&color=EA4AAA)](https://github.com/sponsors/long-910)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/long910)
 
 **Language / 言語 / 语言:**
 [English](README.md) · [日本語](README.ja.md) · [中文](README.zh.md)
@@ -210,7 +214,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-binsleuth = "0.2"
+binsleuth = "0.3"
 ```
 
 Then use the public API:
