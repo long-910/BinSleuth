@@ -12,7 +12,7 @@ Inspect ELF & PE binaries for hardening flags and detect packed/encrypted sectio
 [![Release](https://github.com/long-910/BinSleuth/actions/workflows/release.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/rustc-1.85%2B-orange.svg)](https://www.rust-lang.org)
-[![Tests](https://img.shields.io/badge/tests-43%20passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-45%20passing-brightgreen.svg)](#)
 
 **Language / 言語 / 语言:**
 [English](README.md) · [日本語](README.ja.md) · [中文](README.zh.md)
@@ -44,6 +44,8 @@ It is designed for **security engineers, malware researchers, and developers** w
 | **PIE** | Position-Independent Executable — enables ASLR | `ET_DYN` | `DYNAMIC_BASE` |
 | **RELRO** | Read-Only Relocations — prevents GOT overwrite | `PT_GNU_RELRO` + `BIND_NOW` | N/A |
 | **Stack Canary** | Buffer-overflow tripwire symbol present | `__stack_chk_fail` | `__security_cookie` |
+| **FORTIFY_SOURCE** | Fortified libc wrappers (`__*_chk`) — compile-time bounds checks on unsafe string/memory calls | `__memcpy_chk`, … | `__memcpy_chk`, … |
+| **No RPATH/RUNPATH** | Absence of embedded library search paths — prevents library-injection via writable/relative RPATH | `DT_RPATH` / `DT_RUNPATH` | N/A |
 | **Stripped** | Debug symbols / DWARF info absent — limits reverse-engineering | `.debug_*` sections | Debug directory |
 
 Each check reports one of: **Enabled** / **Partial** / **Disabled** / **N/A**
@@ -159,6 +161,8 @@ binsleuth --strict ./myapp && echo "Hardening OK" || echo "Hardening FAILED"
   [ ENABLED  ]  PIE (ASLR-compatible)
   [ ENABLED  ]  RELRO (Read-Only Relocations)
   [ ENABLED  ]  Stack Canary
+  [ ENABLED  ]  FORTIFY_SOURCE
+  [ ENABLED  ]  No RPATH/RUNPATH
   [ ENABLED  ]  Debug Symbols Stripped
 
   ── Section Entropy ─────────────────────────────────────
@@ -268,12 +272,12 @@ BinSleuth/
 
 ## Supported Formats
 
-| Format | Architectures | NX | PIE | RELRO | Canary |
-|--------|---------------|----|-----|-------|--------|
-| ELF 32-bit | x86, ARM, MIPS, … | ✅ | ✅ | ✅ | ✅ |
-| ELF 64-bit | x86-64, AArch64, … | ✅ | ✅ | ✅ | ✅ |
-| PE 32-bit (PE32) | x86 | ✅ | ✅ | N/A | ✅ |
-| PE 64-bit (PE32+) | x86-64 | ✅ | ✅ | N/A | ✅ |
+| Format | Architectures | NX | PIE | RELRO | Canary | FORTIFY | RPATH |
+|--------|---------------|----|-----|-------|--------|---------|-------|
+| ELF 32-bit | x86, ARM, MIPS, … | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| ELF 64-bit | x86-64, AArch64, … | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| PE 32-bit (PE32) | x86 | ✅ | ✅ | N/A | ✅ | ✅ | N/A |
+| PE 64-bit (PE32+) | x86-64 | ✅ | ✅ | N/A | ✅ | ✅ | N/A |
 
 ---
 
@@ -306,12 +310,12 @@ cargo clippy -- -D warnings
 cargo fmt --check
 ```
 
-The test suite includes **22 unit tests**, **20 integration tests**, and **1 doc test**:
+The test suite includes **24 unit tests**, **20 integration tests**, and **1 doc test**:
 
 | Module | Tests | Coverage |
 |--------|-------|---------|
 | `analyzer::entropy` | 9 | Shannon formula, edge cases, monotonicity |
-| `analyzer::hardening` | 13 | PE header parsing, RELRO states, ELF self-analysis |
+| `analyzer::hardening` | 15 | PE header parsing, RELRO states, FORTIFY_SOURCE, RPATH, ELF self-analysis |
 | `tests::cli` | 20 | CLI flags, JSON output, strict mode, stripped detection, error handling |
 | `lib.rs` (doc test) | 1 | Library API smoke test |
 
@@ -336,6 +340,8 @@ Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details *(coming soon)*.
 - [x] JSON output mode (`--json`)
 - [x] DWARF / PDB debug-info / stripped detection
 - [x] Strict mode for CI pipelines (`--strict`, exit code 2)
+- [x] FORTIFY_SOURCE detection (`__*_chk` symbol scan)
+- [x] RPATH/RUNPATH detection (library-injection risk)
 - [ ] SARIF output format
 - [ ] macOS Mach-O support
 - [ ] Import table diff between two binaries (`binsleuth diff a.out b.out`)

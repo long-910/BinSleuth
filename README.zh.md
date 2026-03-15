@@ -12,7 +12,7 @@
 [![Release](https://github.com/long-910/BinSleuth/actions/workflows/release.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/rustc-1.85%2B-orange.svg)](https://www.rust-lang.org)
-[![Tests](https://img.shields.io/badge/tests-43%20passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-45%20passing-brightgreen.svg)](#)
 
 **Language / 言語 / 语言:**
 [English](README.md) · [日本語](README.ja.md) · [中文](README.zh.md)
@@ -44,6 +44,8 @@ BinSleuth 是一款用 **Rust 编写的安全导向静态二进制分析工具**
 | **PIE** | 位置无关可执行文件 — 启用 ASLR 地址随机化 | `ET_DYN` | `DYNAMIC_BASE` |
 | **RELRO** | 重定位表只读化 — 防止 GOT 覆盖攻击 | `PT_GNU_RELRO` + `BIND_NOW` | N/A |
 | **Stack Canary** | 检测缓冲区溢出保护符号是否存在 | `__stack_chk_fail` | `__security_cookie` |
+| **FORTIFY_SOURCE** | fortified libc 包装函数（`__*_chk`）— 对不安全字符串/内存调用添加编译时边界检查 | `__memcpy_chk`, … | `__memcpy_chk`, … |
+| **No RPATH/RUNPATH** | 不含嵌入式库搜索路径 — 防止通过可写目录或相对路径进行库注入攻击 | `DT_RPATH` / `DT_RUNPATH` | N/A |
 | **Stripped** | 调试符号 / DWARF 信息已移除 — 降低逆向工程风险 | `.debug_*` 节区 | 调试目录 |
 
 每项检测结果为以下之一：**Enabled（已启用）** / **Partial（部分启用）** / **Disabled（未启用）** / **N/A（不适用）**
@@ -159,6 +161,8 @@ binsleuth --strict ./myapp && echo "Hardening OK" || echo "Hardening FAILED"
   [ ENABLED  ]  PIE (ASLR-compatible)
   [ ENABLED  ]  RELRO (Read-Only Relocations)
   [ ENABLED  ]  Stack Canary
+  [ ENABLED  ]  FORTIFY_SOURCE
+  [ ENABLED  ]  No RPATH/RUNPATH
   [ ENABLED  ]  Debug Symbols Stripped
 
   ── Section Entropy ─────────────────────────────────────
@@ -268,12 +272,12 @@ BinSleuth/
 
 ## 支持的格式
 
-| 格式 | 架构 | NX | PIE | RELRO | Canary |
-|------|------|----|-----|-------|--------|
-| ELF 32-bit | x86, ARM, MIPS … | ✅ | ✅ | ✅ | ✅ |
-| ELF 64-bit | x86-64, AArch64 … | ✅ | ✅ | ✅ | ✅ |
-| PE 32-bit (PE32) | x86 | ✅ | ✅ | N/A | ✅ |
-| PE 64-bit (PE32+) | x86-64 | ✅ | ✅ | N/A | ✅ |
+| 格式 | 架构 | NX | PIE | RELRO | Canary | FORTIFY | RPATH |
+|------|------|----|-----|-------|--------|---------|-------|
+| ELF 32-bit | x86, ARM, MIPS … | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| ELF 64-bit | x86-64, AArch64 … | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| PE 32-bit (PE32) | x86 | ✅ | ✅ | N/A | ✅ | ✅ | N/A |
+| PE 64-bit (PE32+) | x86-64 | ✅ | ✅ | N/A | ✅ | ✅ | N/A |
 
 ---
 
@@ -306,12 +310,12 @@ cargo clippy -- -D warnings
 cargo fmt --check
 ```
 
-测试套件包含 **22 个单元测试**、**20 个集成测试** 和 **1 个文档测试**：
+测试套件包含 **24 个单元测试**、**20 个集成测试** 和 **1 个文档测试**：
 
 | 模块 | 测试数量 | 覆盖范围 |
 |------|---------|---------|
 | `analyzer::entropy` | 9 | 香农公式、边界值、单调性 |
-| `analyzer::hardening` | 13 | PE 头解析、RELRO 状态、ELF 自分析 |
+| `analyzer::hardening` | 15 | PE 头解析、RELRO 状态、FORTIFY_SOURCE、RPATH、ELF 自分析 |
 | `tests::cli` | 20 | CLI 参数、JSON 输出、strict 模式、stripped 检测、错误处理 |
 | `lib.rs`（文档测试） | 1 | 库 API 冒烟测试 |
 
@@ -336,6 +340,8 @@ cargo fmt --check
 - [x] JSON 输出模式（`--json`）
 - [x] DWARF / PDB 调试信息 / stripped 检测
 - [x] CI 流水线 strict 模式（`--strict`，退出码 2）
+- [x] FORTIFY_SOURCE 检测（`__*_chk` 符号扫描）
+- [x] RPATH/RUNPATH 检测（库注入风险）
 - [ ] SARIF 输出格式
 - [ ] macOS Mach-O 格式支持
 - [ ] 两个二进制文件的导入表差异对比（`binsleuth diff a.out b.out`）

@@ -12,7 +12,7 @@
 [![Release](https://github.com/long-910/BinSleuth/actions/workflows/release.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/rustc-1.85%2B-orange.svg)](https://www.rust-lang.org)
-[![Tests](https://img.shields.io/badge/tests-43%20passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-45%20passing-brightgreen.svg)](#)
 
 **Language / 言語 / 语言:**
 [English](README.md) · [日本語](README.ja.md) · [中文](README.zh.md)
@@ -44,6 +44,8 @@ BinSleuth は **Rust 製のセキュリティ特化型静的バイナリ解析�
 | **PIE** | 位置独立実行形式 — ASLR によるアドレスランダム化を有効化 | `ET_DYN` | `DYNAMIC_BASE` |
 | **RELRO** | 再配置テーブルの読み取り専用化 — GOT 上書き攻撃を防止 | `PT_GNU_RELRO` + `BIND_NOW` | N/A |
 | **Stack Canary** | バッファオーバーフロー検知シンボルの有無 | `__stack_chk_fail` | `__security_cookie` |
+| **FORTIFY_SOURCE** | fortified libc ラッパー（`__*_chk`）— 文字列/メモリ操作関数にコンパイル時境界チェックを付与 | `__memcpy_chk`, … | `__memcpy_chk`, … |
+| **No RPATH/RUNPATH** | 組み込みライブラリ検索パスの不在 — 書き込み可能ディレクトリや相対パスを使ったライブラリ注入を防止 | `DT_RPATH` / `DT_RUNPATH` | N/A |
 | **Stripped** | デバッグシンボル / DWARF 情報の除去 — リバースエンジニアリングを困難に | `.debug_*` セクション | デバッグディレクトリ |
 
 各チェックは **Enabled（有効）** / **Partial（部分的）** / **Disabled（無効）** / **N/A** のいずれかで報告されます。
@@ -159,6 +161,8 @@ binsleuth --strict ./myapp && echo "Hardening OK" || echo "Hardening FAILED"
   [ ENABLED  ]  PIE (ASLR-compatible)
   [ ENABLED  ]  RELRO (Read-Only Relocations)
   [ ENABLED  ]  Stack Canary
+  [ ENABLED  ]  FORTIFY_SOURCE
+  [ ENABLED  ]  No RPATH/RUNPATH
   [ ENABLED  ]  Debug Symbols Stripped
 
   ── Section Entropy ─────────────────────────────────────
@@ -268,12 +272,12 @@ BinSleuth/
 
 ## 対応フォーマット
 
-| フォーマット | アーキテクチャ | NX | PIE | RELRO | Canary |
-|------------|-------------|----|-----|-------|--------|
-| ELF 32-bit | x86, ARM, MIPS … | ✅ | ✅ | ✅ | ✅ |
-| ELF 64-bit | x86-64, AArch64 … | ✅ | ✅ | ✅ | ✅ |
-| PE 32-bit (PE32) | x86 | ✅ | ✅ | N/A | ✅ |
-| PE 64-bit (PE32+) | x86-64 | ✅ | ✅ | N/A | ✅ |
+| フォーマット | アーキテクチャ | NX | PIE | RELRO | Canary | FORTIFY | RPATH |
+|------------|-------------|----|-----|-------|--------|---------|-------|
+| ELF 32-bit | x86, ARM, MIPS … | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| ELF 64-bit | x86-64, AArch64 … | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| PE 32-bit (PE32) | x86 | ✅ | ✅ | N/A | ✅ | ✅ | N/A |
+| PE 64-bit (PE32+) | x86-64 | ✅ | ✅ | N/A | ✅ | ✅ | N/A |
 
 ---
 
@@ -306,12 +310,12 @@ cargo clippy -- -D warnings
 cargo fmt --check
 ```
 
-テストスイートは **ユニットテスト 22 件**・**統合テスト 20 件**・**ドックテスト 1 件** で構成されています。
+テストスイートは **ユニットテスト 24 件**・**統合テスト 20 件**・**ドックテスト 1 件** で構成されています。
 
 | モジュール | テスト数 | カバー範囲 |
 |-----------|---------|-----------|
 | `analyzer::entropy` | 9 | シャノン公式、境界値、単調性 |
-| `analyzer::hardening` | 13 | PE ヘッダー解析、RELRO 状態、ELF 自己解析 |
+| `analyzer::hardening` | 15 | PE ヘッダー解析、RELRO 状態、FORTIFY_SOURCE、RPATH、ELF 自己解析 |
 | `tests::cli` | 20 | CLI フラグ、JSON 出力、strict モード、stripped 検出、エラー処理 |
 | `lib.rs`（ドックテスト） | 1 | ライブラリ API スモークテスト |
 
@@ -336,6 +340,8 @@ cargo fmt --check
 - [x] JSON 出力モード（`--json`）
 - [x] DWARF / PDB デバッグ情報 / stripped 検出
 - [x] CI 向け strict モード（`--strict`、終了コード 2）
+- [x] FORTIFY_SOURCE 検出（`__*_chk` シンボルスキャン）
+- [x] RPATH/RUNPATH 検出（ライブラリ注入リスク）
 - [ ] SARIF 出力フォーマット
 - [ ] macOS Mach-O 対応
 - [ ] 2つのバイナリのインポート差分（`binsleuth diff a.out b.out`）

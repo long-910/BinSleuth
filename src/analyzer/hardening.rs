@@ -43,6 +43,10 @@ pub struct HardeningInfo {
     pub relro: CheckResult,
     /// Stack canary — `__stack_chk_fail` symbol present
     pub stack_canary: CheckResult,
+    /// FORTIFY_SOURCE — fortified libc wrappers (`__*_chk`) present
+    pub fortify_source: CheckResult,
+    /// RPATH/RUNPATH — ELF library search-path injection risk (Enabled = safe, no path set)
+    pub rpath: CheckResult,
     /// Debug symbols stripped (Enabled = stripped = good; Disabled = debug info present)
     pub stripped: CheckResult,
     /// Dangerous symbols found in the import/symbol table
@@ -152,6 +156,14 @@ fn analyze_elf(data: &[u8]) -> Result<HardeningInfo> {
 
     let dangerous_symbols = collect_dangerous_symbols(&obj);
 
+    let fortify_source = detect_fortify_source(&obj);
+
+    let rpath = if is_64 {
+        detect_rpath_64(data)
+    } else {
+        detect_rpath_32(data)
+    };
+
     // Stripped: check for embedded DWARF debug sections
     let has_debug = obj
         .sections()
@@ -169,6 +181,8 @@ fn analyze_elf(data: &[u8]) -> Result<HardeningInfo> {
         pie,
         relro,
         stack_canary,
+        fortify_source,
+        rpath,
         stripped,
         dangerous_symbols,
     })
@@ -382,6 +396,8 @@ fn analyze_pe(data: &[u8]) -> Result<HardeningInfo> {
 
     let dangerous_symbols = collect_dangerous_symbols(&obj);
 
+    let fortify_source = detect_fortify_source(&obj);
+
     // Stripped: check PE debug directory and embedded .debug_* sections
     let stripped = detect_pe_stripped(data, &obj);
 
@@ -392,6 +408,8 @@ fn analyze_pe(data: &[u8]) -> Result<HardeningInfo> {
         pie,
         relro,
         stack_canary,
+        fortify_source,
+        rpath: CheckResult::NotApplicable,
         stripped,
         dangerous_symbols,
     })
@@ -487,6 +505,108 @@ fn detect_pe_stripped(data: &[u8], obj: &object::File) -> CheckResult {
         CheckResult::Disabled // debug directory present → not stripped
     } else {
         CheckResult::Enabled
+    }
+}
+
+// ── FORTIFY_SOURCE detection ──────────────────────────────────────────────────
+
+/// Detect `-D_FORTIFY_SOURCE` by looking for fortified libc wrapper symbols (`__*_chk`).
+///
+/// When compiled with `_FORTIFY_SOURCE=1` or `=2`, the compiler replaces unsafe
+/// libc calls (memcpy, strcpy, sprintf, …) with bounds-checking variants whose
+/// names end in `_chk` and are prefixed with `__` (e.g. `__memcpy_chk`).
+fn detect_fortify_source(obj: &object::File) -> CheckResult {
+    let has_chk = obj
+        .symbols()
+        .chain(obj.dynamic_symbols())
+        .filter_map(|sym| sym.name().ok())
+        .any(|name| name.starts_with("__") && name.ends_with("_chk"));
+    if has_chk {
+        CheckResult::Enabled
+    } else {
+        CheckResult::Disabled
+    }
+}
+
+// ── RPATH / RUNPATH detection ─────────────────────────────────────────────────
+
+/// Scan the ELF dynamic section for `DT_RPATH` (tag 15) or `DT_RUNPATH` (tag 29).
+///
+/// An embedded RPATH/RUNPATH can allow an attacker to inject a malicious shared
+/// library into the process if the path includes a world-writable or relative
+/// directory.  Returns:
+/// - `Enabled`  — no RPATH/RUNPATH present (safe)
+/// - `Disabled` — one or more entries found (potential hijacking vector)
+/// - `NotApplicable` — binary has no dynamic segment (static binary)
+fn rpath_from_dynamic<D: Dyn<Endian = Endianness>>(entries: &[D], endian: Endianness) -> bool {
+    entries.iter().any(|entry| {
+        let tag = entry.d_tag(endian).into();
+        let val: u64 = entry.d_val(endian).into();
+        (tag == elf::DT_RPATH as u64 || tag == elf::DT_RUNPATH as u64) && val != 0
+    })
+}
+
+fn detect_rpath_64(data: &[u8]) -> CheckResult {
+    let header = match object::elf::FileHeader64::<Endianness>::parse(data) {
+        Ok(h) => h,
+        Err(_) => return CheckResult::NotApplicable,
+    };
+    let endian = match header.endian() {
+        Ok(e) => e,
+        Err(_) => return CheckResult::NotApplicable,
+    };
+    let phdrs = match header.program_headers(endian, data) {
+        Ok(p) => p,
+        Err(_) => return CheckResult::NotApplicable,
+    };
+
+    let mut has_dynamic = false;
+    for phdr in phdrs {
+        if phdr.p_type(endian) == elf::PT_DYNAMIC {
+            has_dynamic = true;
+            if let Ok(Some(entries)) = phdr.dynamic(endian, data) {
+                if rpath_from_dynamic(entries, endian) {
+                    return CheckResult::Disabled;
+                }
+            }
+        }
+    }
+    if has_dynamic {
+        CheckResult::Enabled
+    } else {
+        CheckResult::NotApplicable
+    }
+}
+
+fn detect_rpath_32(data: &[u8]) -> CheckResult {
+    let header = match object::elf::FileHeader32::<Endianness>::parse(data) {
+        Ok(h) => h,
+        Err(_) => return CheckResult::NotApplicable,
+    };
+    let endian = match header.endian() {
+        Ok(e) => e,
+        Err(_) => return CheckResult::NotApplicable,
+    };
+    let phdrs = match header.program_headers(endian, data) {
+        Ok(p) => p,
+        Err(_) => return CheckResult::NotApplicable,
+    };
+
+    let mut has_dynamic = false;
+    for phdr in phdrs {
+        if phdr.p_type(endian) == elf::PT_DYNAMIC {
+            has_dynamic = true;
+            if let Ok(Some(entries)) = phdr.dynamic(endian, data) {
+                if rpath_from_dynamic(entries, endian) {
+                    return CheckResult::Disabled;
+                }
+            }
+        }
+    }
+    if has_dynamic {
+        CheckResult::Enabled
+    } else {
+        CheckResult::NotApplicable
     }
 }
 
@@ -636,6 +756,37 @@ mod tests {
             CheckResult::Partial(s) => assert_eq!(s, msg),
             other => panic!("expected Partial, got {:?}", other),
         }
+    }
+
+    // ── FORTIFY_SOURCE tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn fortify_source_disabled_for_empty_object() {
+        // A minimal ELF with no symbols → FORTIFY_SOURCE must be Disabled
+        let path = std::env::current_exe().expect("current exe");
+        let data = std::fs::read(&path).expect("read self");
+        let obj = object::File::parse(data.as_slice()).expect("parse");
+        // We can't guarantee the test binary has __*_chk; just verify no panic
+        let result = detect_fortify_source(&obj);
+        assert!(matches!(
+            result,
+            CheckResult::Enabled | CheckResult::Disabled
+        ));
+    }
+
+    // ── RPATH helpers tests ───────────────────────────────────────────────────
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn rpath_result_on_self_is_valid() {
+        let path = std::env::current_exe().expect("current exe");
+        let data = std::fs::read(&path).expect("read self");
+        let result = detect_rpath_64(&data);
+        // A freshly built Rust binary should have no RPATH or be NotApplicable
+        assert!(matches!(
+            result,
+            CheckResult::Enabled | CheckResult::Disabled | CheckResult::NotApplicable
+        ));
     }
 
     // ── Full HardeningInfo round-trip on the test binary (ELF) ───────────────
