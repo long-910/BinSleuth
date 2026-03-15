@@ -15,6 +15,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/rustc-1.85%2B-orange.svg)](https://www.rust-lang.org)
 [![Tests](https://img.shields.io/badge/tests-45%20passing-brightgreen.svg)](#)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/long-910?label=Sponsor&logo=githubsponsors&color=EA4AAA)](https://github.com/sponsors/long-910)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/long910)
 
 **Language / 言語 / 语言:**
 [English](README.md) · [日本語](README.ja.md) · [中文](README.zh.md)
