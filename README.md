@@ -210,7 +210,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-binsleuth = "0.2"
+binsleuth = "0.3"
 ```
 
 Then use the public API:

@@ -210,7 +210,7 @@ binsleuth --strict ./myapp && echo "Hardening OK" || echo "Hardening FAILED"
 
 ```toml
 [dependencies]
-binsleuth = "0.2"
+binsleuth = "0.3"
 ```
 
 使用公开 API：
