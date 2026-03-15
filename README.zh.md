@@ -5,6 +5,8 @@
 **快速、零依赖的静态二进制安全分析 CLI 工具。**
 毫秒级检测 ELF 和 PE 文件的安全加固配置与加密/混淆特征。
 
+![BinSleuth social preview](https://opengraph.githubassets.com/1/long-910/BinSleuth)
+
 [![Crates.io](https://img.shields.io/crates/v/binsleuth.svg)](https://crates.io/crates/binsleuth)
 [![Downloads](https://img.shields.io/crates/d/binsleuth.svg)](https://crates.io/crates/binsleuth)
 [![docs.rs](https://docs.rs/binsleuth/badge.svg)](https://docs.rs/binsleuth)
