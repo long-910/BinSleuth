@@ -5,7 +5,7 @@
 **ELF/PE バイナリのセキュリティ設定検証とエントロピー解析を行う、高速 Rust 製 CLI ツール。**
 インストール不要の依存ゼロ設計。ミリ秒単位で解析結果を返します。
 
-![BinSleuth social preview](https://opengraph.githubassets.com/1/long-910/BinSleuth)
+![BinSleuth social preview](https://repository-images.githubusercontent.com/1174345949/ddfc9174-be34-4b79-931d-1b8d3e71fcdf)
 
 [![Crates.io](https://img.shields.io/crates/v/binsleuth.svg)](https://crates.io/crates/binsleuth)
 [![Downloads](https://img.shields.io/crates/d/binsleuth.svg)](https://crates.io/crates/binsleuth)

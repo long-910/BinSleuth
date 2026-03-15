@@ -5,7 +5,7 @@
 **A fast, zero-dependency CLI tool for static binary security analysis.**
 Inspect ELF & PE binaries for hardening flags and detect packed/encrypted sections — in milliseconds.
 
-![BinSleuth social preview](https://opengraph.githubassets.com/1/long-910/BinSleuth)
+![BinSleuth social preview](https://repository-images.githubusercontent.com/1174345949/ddfc9174-be34-4b79-931d-1b8d3e71fcdf)
 
 [![Crates.io](https://img.shields.io/crates/v/binsleuth.svg)](https://crates.io/crates/binsleuth)
 [![Downloads](https://img.shields.io/crates/d/binsleuth.svg)](https://crates.io/crates/binsleuth)
