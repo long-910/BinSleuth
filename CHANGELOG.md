@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-03-22
+
+### Added
+
+- **`AnalysisReport` unified struct** (`src/analyzer/mod.rs`): single entry point for all analysis results.
+  - `AnalysisReport::analyze(&data)` — runs hardening + entropy analysis in one call.
+  - `to_json() -> String` and `to_json_pretty() -> String` — return JSON strings directly (no stdout side-effect), designed for library consumers such as VS Code extensions.
+  - `security_score: u8` — aggregate security score in [0, 100] based on weighted hardening checks (NX 20, PIE 20, RELRO 15, Stack Canary 15, FORTIFY_SOURCE 10, No-RPATH 10, Stripped 5, clean symbols 5).
+- **`binsleuth::analyze(&data)`** — top-level convenience function in `lib.rs`; equivalent to `AnalysisReport::analyze`.
+- **`SectionPermissions`** (`src/analyzer/entropy.rs`): new `read`, `write`, `execute` bool fields derived from ELF `SHF_*` flags and PE/COFF `IMAGE_SCN_MEM_*` characteristics.
+- **`SectionEntropy` — new fields**:
+  - `virtual_address: u64` — load address for memory-map visualisation.
+  - `file_offset: u64` — byte offset within the file.
+  - `permissions: SectionPermissions` — per-section rwx flags.
+- **`SymbolCategory`** enum (`Exec` / `Net` / `Mem`) and **`DangerousSymbol { name, category }`** struct — enables category-aware visualisation (e.g. colour-coded by threat type in a VS Code extension).
+- Terminal report now shows symbol category (`[exec]` / `[net]` / `[mem]`) next to each dangerous symbol.
+- JSON output (`--json`) now includes a top-level `security_score` field.
+- `examples/basic.rs` updated to demonstrate the new `AnalysisReport` API with virtual addresses, file offsets, and rwx permissions.
+- **41 new tests** (unit + integration):
+  - `extract_permissions` for ELF `SHF_*` and COFF `IMAGE_SCN_MEM_*` flags (6 unit tests).
+  - `SectionEntropy::analyze` metadata validation on self-binary (2 unit tests).
+  - `categorize_dangerous_symbol` for all three categories and safe symbols (8 unit tests).
+  - `compute_score` boundary values, per-check deductions, clamping (9 unit tests).
+  - `AnalysisReport` API: `analyze`, `to_json`, `to_json_pretty`, invalid inputs (7 unit tests).
+  - CLI integration: `security_score`, `virtual_address`, `file_offset`, `permissions`, dangerous-symbol categories (6 integration tests).
+
+### Changed
+
+- **Breaking (library)**: `HardeningInfo::dangerous_symbols` changed from `Vec<String>` to `Vec<DangerousSymbol>`. Each entry now carries a `category: SymbolCategory` field.
+- `src/analyzer/mod.rs` expanded from a stub to the home of `AnalysisReport` and `compute_score`.
+- `report::json::print_json` signature changed to accept `&AnalysisReport` instead of separate `&HardeningInfo` + `&[SectionEntropy]`.
+- Version bumped to `0.4.0`.
+
 ## [0.3.0] - 2026-03-15
 
 ### Added
@@ -69,7 +102,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 32 unit + integration tests covering all analyzers and CLI edge cases
 - Rust edition 2024 with MSRV 1.85
 
-[Unreleased]: https://github.com/long-910/BinSleuth/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/long-910/BinSleuth/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/long-910/BinSleuth/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/long-910/BinSleuth/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/long-910/BinSleuth/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/long-910/BinSleuth/compare/v0.1.0...v0.2.0

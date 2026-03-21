@@ -270,6 +270,133 @@ fn strict_and_json_flags_together() {
         .expect("output must be valid JSON even with --strict");
 }
 
+// ── Security score ────────────────────────────────────────────────────────────
+
+#[test]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+fn json_output_contains_security_score() {
+    let bin = env!("CARGO_BIN_EXE_binsleuth");
+    let out = binsleuth().arg("--json").arg(bin).output().unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&out.stdout)).unwrap();
+    assert!(
+        v.get("security_score").is_some(),
+        "missing 'security_score' key"
+    );
+}
+
+#[test]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+fn json_security_score_is_in_range() {
+    let bin = env!("CARGO_BIN_EXE_binsleuth");
+    let out = binsleuth().arg("--json").arg(bin).output().unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&out.stdout)).unwrap();
+    let score = v["security_score"]
+        .as_u64()
+        .expect("security_score must be a number");
+    assert!(
+        score <= 100,
+        "security_score must be in [0, 100], got {score}"
+    );
+}
+
+// ── Section metadata (virtual_address / file_offset / permissions) ────────────
+
+#[test]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+fn json_sections_have_virtual_address_and_file_offset() {
+    let bin = env!("CARGO_BIN_EXE_binsleuth");
+    let out = binsleuth().arg("--json").arg(bin).output().unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&out.stdout)).unwrap();
+    let sections = v["sections"].as_array().expect("sections must be an array");
+    assert!(!sections.is_empty(), "expected at least one section");
+    let first = &sections[0];
+    assert!(
+        first.get("virtual_address").is_some(),
+        "missing 'virtual_address' in section"
+    );
+    assert!(
+        first.get("file_offset").is_some(),
+        "missing 'file_offset' in section"
+    );
+}
+
+#[test]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+fn json_section_permissions_have_rwx_fields() {
+    let bin = env!("CARGO_BIN_EXE_binsleuth");
+    let out = binsleuth()
+        .arg("--json")
+        .arg("--verbose")
+        .arg(bin)
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&out.stdout)).unwrap();
+    let sections = v["sections"].as_array().unwrap();
+    for sec in sections {
+        let perms = &sec["permissions"];
+        assert!(perms.get("read").is_some(), "missing 'read' in permissions");
+        assert!(
+            perms.get("write").is_some(),
+            "missing 'write' in permissions"
+        );
+        assert!(
+            perms.get("execute").is_some(),
+            "missing 'execute' in permissions"
+        );
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn json_text_section_is_executable() {
+    let bin = env!("CARGO_BIN_EXE_binsleuth");
+    let out = binsleuth()
+        .arg("--json")
+        .arg("--verbose")
+        .arg(bin)
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&out.stdout)).unwrap();
+    let sections = v["sections"].as_array().unwrap();
+    if let Some(text) = sections.iter().find(|s| s["name"] == ".text") {
+        assert_eq!(
+            text["permissions"]["execute"], true,
+            ".text must be executable"
+        );
+    }
+}
+
+// ── Dangerous symbols with category ──────────────────────────────────────────
+
+#[test]
+#[cfg(any(target_os = "linux", target_os = "windows"))]
+fn json_dangerous_symbols_have_name_and_category() {
+    let bin = env!("CARGO_BIN_EXE_binsleuth");
+    let out = binsleuth().arg("--json").arg(bin).output().unwrap();
+    assert!(out.status.success());
+    let v: serde_json::Value = serde_json::from_str(&String::from_utf8_lossy(&out.stdout)).unwrap();
+    let syms = v["hardening"]["dangerous_symbols"]
+        .as_array()
+        .expect("dangerous_symbols must be an array");
+    for sym in syms {
+        assert!(sym.get("name").is_some(), "dangerous symbol missing 'name'");
+        assert!(
+            sym.get("category").is_some(),
+            "dangerous symbol missing 'category'"
+        );
+        let cat = sym["category"].as_str().unwrap_or("");
+        assert!(
+            ["exec", "net", "mem"].contains(&cat),
+            "unexpected category '{cat}'"
+        );
+    }
+}
+
 // ── Stripped field ─────────────────────────────────────────────────────────────
 
 #[test]

@@ -5,9 +5,21 @@
 //! BinSleuth detects:
 //! - Security hardening flags (NX, PIE, RELRO, Stack Canary, FORTIFY_SOURCE, RPATH/RUNPATH, debug-symbol stripping)
 //! - Shannon entropy per section (detects packing/encryption)
-//! - Dangerous symbol usage (`system()`, `execve()`, `mprotect()`, …)
+//! - Dangerous symbol usage (`system()`, `execve()`, `mprotect()`, …) with category (Exec / Net / Mem)
+//! - Per-section virtual address, file offset, and read/write/execute permissions
 //!
-//! ## Library Usage
+//! ## Quick start (library)
+//!
+//! ```no_run
+//! let data = std::fs::read("path/to/binary").unwrap();
+//!
+//! // Single call — returns everything including security score
+//! let report = binsleuth::analyze(&data).unwrap();
+//! println!("Score: {}/100", report.security_score);
+//! println!("{}", report.to_json_pretty());
+//! ```
+//!
+//! ## Lower-level API
 //!
 //! ```no_run
 //! use binsleuth::analyzer::hardening::HardeningInfo;
@@ -18,15 +30,15 @@
 //! let hardening = HardeningInfo::analyze(&data).unwrap();
 //! println!("PIE: {:?}", hardening.pie);
 //!
-//! let entropies = SectionEntropy::analyze(&data).unwrap();
-//! for sec in &entropies {
-//!     println!("{}: entropy={:.4}", sec.name, sec.entropy);
+//! let sections = SectionEntropy::analyze(&data).unwrap();
+//! for sec in &sections {
+//!     println!("{}: va={:#x} entropy={:.4} r={} w={} x={}",
+//!         sec.name, sec.virtual_address, sec.entropy,
+//!         sec.permissions.read, sec.permissions.write, sec.permissions.execute);
 //! }
 //! ```
 //!
 //! ## CLI
-//!
-//! Install and use the `binsleuth` binary directly:
 //!
 //! ```text
 //! cargo install binsleuth
@@ -37,3 +49,12 @@
 
 pub mod analyzer;
 pub mod report;
+
+pub use analyzer::AnalysisReport;
+
+/// Convenience wrapper: analyze raw binary bytes and return a complete [`AnalysisReport`].
+///
+/// Equivalent to [`AnalysisReport::analyze`].
+pub fn analyze(data: &[u8]) -> anyhow::Result<AnalysisReport> {
+    AnalysisReport::analyze(data)
+}

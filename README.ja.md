@@ -14,7 +14,7 @@
 [![Release](https://github.com/long-910/BinSleuth/actions/workflows/release.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/rustc-1.85%2B-orange.svg)](https://www.rust-lang.org)
-[![Tests](https://img.shields.io/badge/tests-45%20passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-85%20passing-brightgreen.svg)](#)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/long-910?label=Sponsor&logo=githubsponsors&color=EA4AAA)](https://github.com/sponsors/long-910)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/long910)
 
@@ -70,13 +70,28 @@ H = -Σ P(x) · log₂(P(x))       範囲: [0.0 – 8.0]
 
 ### 3. 危険シンボル検出
 
-マルウェアや脆弱なバイナリに頻出するシンボルをフラグします。
+マルウェアや脆弱なバイナリに頻出するシンボルをフラグし、**カテゴリ付き**で報告します。
 
-| カテゴリ | 例 |
-|---------|---|
-| **コード実行** | `system`, `execve`, `popen`, `WinExec`, `CreateProcess` |
-| **ネットワーク** | `connect`, `socket`, `gethostbyname`, `WinHttpOpen` |
-| **メモリ操作** | `mprotect`, `mmap`, `VirtualAlloc`, `VirtualProtect` |
+| カテゴリ | JSON値 | 例 |
+|---------|-------|---|
+| **コード実行** | `exec` | `system`, `execve`, `popen`, `WinExec`, `CreateProcess` |
+| **ネットワーク** | `net` | `connect`, `socket`, `gethostbyname`, `WinHttpOpen` |
+| **メモリ操作** | `mem` | `mprotect`, `mmap`, `VirtualAlloc`, `VirtualProtect` |
+
+### 4. セキュリティスコア
+
+すべてのレポートにはハーデニング結果を重み付け集計した **0〜100 のセキュリティスコア** が含まれます。
+
+| チェック | 配点 |
+|---------|------|
+| NX | 20 |
+| PIE | 20 |
+| RELRO（Full） | 15 · Partial: 7 · N/A: 15 |
+| Stack Canary | 15 |
+| FORTIFY_SOURCE | 10 |
+| No RPATH/RUNPATH | 10 |
+| Stripped | 5 |
+| 危険シンボルなし | 5（1シンボルにつき −1） |
 
 ---
 
@@ -199,39 +214,59 @@ binsleuth --strict ./myapp && echo "Hardening OK" || echo "Hardening FAILED"
   ── Dangerous Symbol Usage ──────────────────────────────
 
   3 dangerous symbol(s) found:
-    ▶  execve
-    ▶  mprotect
-    ▶  socket
+    ▶  execve    [exec]
+    ▶  mprotect  [mem]
+    ▶  socket    [net]
 ```
 
 ---
 
 ## ライブラリとして使う
 
-`binsleuth` は CLI に加えて、Rust ライブラリクレートとしても利用できます。
+`binsleuth` は CLI に加えて、Rust ライブラリクレートとしても利用できます。VS Code 拡張などの可視化ツールのコア解析エンジンとして設計されています。
 
 `Cargo.toml` に追加してください：
 
 ```toml
 [dependencies]
-binsleuth = "0.3"
+binsleuth = "0.4"
 ```
 
-パブリック API の使用例：
+### 統合 API（推奨）
+
+```rust
+// 1回の呼び出しでハーデニング・セクション・スコアすべてを取得
+let data = std::fs::read("path/to/binary")?;
+let report = binsleuth::analyze(&data)?;
+
+println!("スコア: {}/100", report.security_score);
+println!("PIE:   {:?}", report.hardening.pie);
+
+for sec in &report.sections {
+    println!("{}: va={:#x} entropy={:.4} rwx={}{}{}",
+        sec.name, sec.virtual_address, sec.entropy,
+        if sec.permissions.read  { 'r' } else { '-' },
+        if sec.permissions.write { 'w' } else { '-' },
+        if sec.permissions.execute { 'x' } else { '-' },
+    );
+}
+
+for sym in &report.hardening.dangerous_symbols {
+    println!("  {:?}  {}", sym.category, sym.name);
+}
+
+// JSON 文字列として取得（stdout への出力なし）
+let json: String = report.to_json_pretty();
+```
+
+### 低レベル API
 
 ```rust
 use binsleuth::analyzer::hardening::HardeningInfo;
 use binsleuth::analyzer::entropy::SectionEntropy;
 
-let data = std::fs::read("path/to/binary")?;
-
 let hardening = HardeningInfo::analyze(&data)?;
-println!("PIE: {:?}", hardening.pie);
-
-let entropies = SectionEntropy::analyze(&data)?;
-for sec in &entropies {
-    println!("{}: entropy={:.4}", sec.name, sec.entropy);
-}
+let sections  = SectionEntropy::analyze(&data)?;
 ```
 
 完全な実行例は [docs.rs の API ドキュメント](https://docs.rs/binsleuth) と [`examples/basic.rs`](examples/basic.rs) を参照してください。
@@ -267,9 +302,12 @@ BinSleuth/
 
 | 型 | ファイル | 役割 |
 |----|---------|------|
+| `AnalysisReport` | `analyzer/mod.rs` | 統合結果：ハーデニング + セクション + スコア |
 | `HardeningInfo` | `analyzer/hardening.rs` | ハーデニングチェック結果の集約 |
 | `CheckResult` | `analyzer/hardening.rs` | `Enabled` / `Partial(msg)` / `Disabled` / `N/A` |
-| `SectionEntropy` | `analyzer/entropy.rs` | セクション名 + エントロピー値 + バイトサイズ |
+| `DangerousSymbol` | `analyzer/hardening.rs` | シンボル名 + `SymbolCategory`（Exec / Net / Mem） |
+| `SectionEntropy` | `analyzer/entropy.rs` | セクション名・仮想アドレス・ファイルオフセット・サイズ・エントロピー・パーミッション |
+| `SectionPermissions` | `analyzer/entropy.rs` | `read`・`write`・`execute` ブールフラグ |
 | `TerminalReporter` | `report/terminal.rs` | カラーターミナルレンダラー |
 
 ---
@@ -314,14 +352,15 @@ cargo clippy -- -D warnings
 cargo fmt --check
 ```
 
-テストスイートは **ユニットテスト 24 件**・**統合テスト 20 件**・**ドックテスト 1 件** で構成されています。
+テストスイートは **ユニットテスト 56 件**・**統合テスト 26 件**・**ドックテスト 3 件**（合計 85 件）で構成されています。
 
 | モジュール | テスト数 | カバー範囲 |
 |-----------|---------|-----------|
-| `analyzer::entropy` | 9 | シャノン公式、境界値、単調性 |
-| `analyzer::hardening` | 15 | PE ヘッダー解析、RELRO 状態、FORTIFY_SOURCE、RPATH、ELF 自己解析 |
-| `tests::cli` | 20 | CLI フラグ、JSON 出力、strict モード、stripped 検出、エラー処理 |
-| `lib.rs`（ドックテスト） | 1 | ライブラリ API スモークテスト |
+| `analyzer::entropy` | 17 | シャノン公式、境界値、単調性、`extract_permissions`（ELF/COFF）、セクションメタデータ |
+| `analyzer::hardening` | 23 | PE ヘッダー解析、RELRO 状態、FORTIFY_SOURCE、RPATH、ELF 自己解析、危険シンボルカテゴリ判定 |
+| `analyzer`（mod） | 16 | `compute_score` 境界値・各チェック減点、`AnalysisReport` API、JSON シリアライズ |
+| `tests::cli` | 26 | CLI フラグ、JSON 出力、strict モード、stripped 検出、エラー処理、`security_score`、セクションメタデータ、危険シンボルカテゴリ |
+| ドックテスト | 3 | ライブラリ API スモークテスト |
 
 ---
 
@@ -346,6 +385,11 @@ cargo fmt --check
 - [x] CI 向け strict モード（`--strict`、終了コード 2）
 - [x] FORTIFY_SOURCE 検出（`__*_chk` シンボルスキャン）
 - [x] RPATH/RUNPATH 検出（ライブラリ注入リスク）
+- [x] ライブラリ API — `AnalysisReport::analyze()` 統合エントリーポイント
+- [x] セキュリティスコア（0〜100）— ダッシュボード・バッジ表示用
+- [x] セクション仮想アドレス・ファイルオフセット・rwx パーミッション
+- [x] 危険シンボルカテゴリ（Exec / Net / Mem）— 可視化ツール向け色分け対応
+- [ ] VS Code 拡張（可視化フロントエンド）
 - [ ] SARIF 出力フォーマット
 - [ ] macOS Mach-O 対応
 - [ ] 2つのバイナリのインポート差分（`binsleuth diff a.out b.out`）

@@ -14,7 +14,7 @@
 [![Release](https://github.com/long-910/BinSleuth/actions/workflows/release.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/rustc-1.85%2B-orange.svg)](https://www.rust-lang.org)
-[![Tests](https://img.shields.io/badge/tests-45%20passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-85%20passing-brightgreen.svg)](#)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/long-910?label=Sponsor&logo=githubsponsors&color=EA4AAA)](https://github.com/sponsors/long-910)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/long910)
 
@@ -70,13 +70,28 @@ H = -Σ P(x) · log₂(P(x))       取值范围: [0.0 – 8.0]
 
 ### 3. 危险符号检测
 
-BinSleuth 标记常见于恶意或不安全二进制文件中的符号：
+BinSleuth 标记常见于恶意或不安全二进制文件中的符号，并附带**分类标签**：
 
-| 类别 | 示例 |
-|------|------|
-| **代码执行** | `system`, `execve`, `popen`, `WinExec`, `CreateProcess` |
-| **网络操作** | `connect`, `socket`, `gethostbyname`, `WinHttpOpen` |
-| **内存操作** | `mprotect`, `mmap`, `VirtualAlloc`, `VirtualProtect` |
+| 类别 | JSON 值 | 示例 |
+|------|--------|------|
+| **代码执行** | `exec` | `system`, `execve`, `popen`, `WinExec`, `CreateProcess` |
+| **网络操作** | `net` | `connect`, `socket`, `gethostbyname`, `WinHttpOpen` |
+| **内存操作** | `mem` | `mprotect`, `mmap`, `VirtualAlloc`, `VirtualProtect` |
+
+### 4. 安全评分
+
+每份报告均包含一个基于加固检测结果加权计算的 **0 到 100 的安全评分**：
+
+| 检测项 | 分值 |
+|--------|------|
+| NX | 20 |
+| PIE | 20 |
+| RELRO（Full） | 15 · Partial: 7 · N/A: 15 |
+| Stack Canary | 15 |
+| FORTIFY_SOURCE | 10 |
+| 无 RPATH/RUNPATH | 10 |
+| Stripped | 5 |
+| 无危险符号 | 5（每个符号 −1） |
 
 ---
 
@@ -199,39 +214,59 @@ binsleuth --strict ./myapp && echo "Hardening OK" || echo "Hardening FAILED"
   ── Dangerous Symbol Usage ──────────────────────────────
 
   3 dangerous symbol(s) found:
-    ▶  execve
-    ▶  mprotect
-    ▶  socket
+    ▶  execve    [exec]
+    ▶  mprotect  [mem]
+    ▶  socket    [net]
 ```
 
 ---
 
 ## 作为库使用
 
-`binsleuth` 除 CLI 外，也可作为 Rust 库 crate 使用。
+`binsleuth` 除 CLI 外，也可作为 Rust 库 crate 使用 — 例如作为 VS Code 扩展等可视化工具的核心分析引擎。
 
 在 `Cargo.toml` 中添加：
 
 ```toml
 [dependencies]
-binsleuth = "0.3"
+binsleuth = "0.4"
 ```
 
-使用公开 API：
+### 统一 API（推荐）
+
+```rust
+// 一次调用获取加固检测、节区信息和安全评分
+let data = std::fs::read("path/to/binary")?;
+let report = binsleuth::analyze(&data)?;
+
+println!("评分: {}/100", report.security_score);
+println!("PIE:  {:?}", report.hardening.pie);
+
+for sec in &report.sections {
+    println!("{}: va={:#x} entropy={:.4} rwx={}{}{}",
+        sec.name, sec.virtual_address, sec.entropy,
+        if sec.permissions.read  { 'r' } else { '-' },
+        if sec.permissions.write { 'w' } else { '-' },
+        if sec.permissions.execute { 'x' } else { '-' },
+    );
+}
+
+for sym in &report.hardening.dangerous_symbols {
+    println!("  {:?}  {}", sym.category, sym.name);
+}
+
+// 获取 JSON 字符串（不输出到 stdout）
+let json: String = report.to_json_pretty();
+```
+
+### 低级 API
 
 ```rust
 use binsleuth::analyzer::hardening::HardeningInfo;
 use binsleuth::analyzer::entropy::SectionEntropy;
 
-let data = std::fs::read("path/to/binary")?;
-
 let hardening = HardeningInfo::analyze(&data)?;
-println!("PIE: {:?}", hardening.pie);
-
-let entropies = SectionEntropy::analyze(&data)?;
-for sec in &entropies {
-    println!("{}: entropy={:.4}", sec.name, sec.entropy);
-}
+let sections  = SectionEntropy::analyze(&data)?;
 ```
 
 完整示例请参阅 [docs.rs API 文档](https://docs.rs/binsleuth) 和 [`examples/basic.rs`](examples/basic.rs)。
@@ -267,9 +302,12 @@ BinSleuth/
 
 | 类型 | 文件 | 作用 |
 |------|------|------|
+| `AnalysisReport` | `analyzer/mod.rs` | 统一结果：加固检测 + 节区 + 安全评分 |
 | `HardeningInfo` | `analyzer/hardening.rs` | 汇总所有加固检测结果 |
 | `CheckResult` | `analyzer/hardening.rs` | `Enabled` / `Partial(msg)` / `Disabled` / `N/A` |
-| `SectionEntropy` | `analyzer/entropy.rs` | 节区名称 + 熵值 + 字节大小 |
+| `DangerousSymbol` | `analyzer/hardening.rs` | 符号名称 + `SymbolCategory`（Exec / Net / Mem） |
+| `SectionEntropy` | `analyzer/entropy.rs` | 节区名、虚拟地址、文件偏移、大小、熵值、权限 |
+| `SectionPermissions` | `analyzer/entropy.rs` | `read`、`write`、`execute` 布尔标志 |
 | `TerminalReporter` | `report/terminal.rs` | 彩色终端输出渲染器 |
 
 ---
@@ -314,14 +352,15 @@ cargo clippy -- -D warnings
 cargo fmt --check
 ```
 
-测试套件包含 **24 个单元测试**、**20 个集成测试** 和 **1 个文档测试**：
+测试套件包含 **56 个单元测试**、**26 个集成测试** 和 **3 个文档测试**（共 85 个）：
 
 | 模块 | 测试数量 | 覆盖范围 |
 |------|---------|---------|
-| `analyzer::entropy` | 9 | 香农公式、边界值、单调性 |
-| `analyzer::hardening` | 15 | PE 头解析、RELRO 状态、FORTIFY_SOURCE、RPATH、ELF 自分析 |
-| `tests::cli` | 20 | CLI 参数、JSON 输出、strict 模式、stripped 检测、错误处理 |
-| `lib.rs`（文档测试） | 1 | 库 API 冒烟测试 |
+| `analyzer::entropy` | 17 | 香农公式、边界值、单调性、`extract_permissions`（ELF/COFF）、节区元数据 |
+| `analyzer::hardening` | 23 | PE 头解析、RELRO 状态、FORTIFY_SOURCE、RPATH、ELF 自分析、危险符号分类 |
+| `analyzer`（mod） | 16 | `compute_score` 边界值与各项扣分、`AnalysisReport` API、JSON 序列化 |
+| `tests::cli` | 26 | CLI 参数、JSON 输出、strict 模式、stripped 检测、错误处理、`security_score`、节区元数据、危险符号分类 |
+| 文档测试 | 3 | 库 API 冒烟测试 |
 
 ---
 
@@ -346,6 +385,11 @@ cargo fmt --check
 - [x] CI 流水线 strict 模式（`--strict`，退出码 2）
 - [x] FORTIFY_SOURCE 检测（`__*_chk` 符号扫描）
 - [x] RPATH/RUNPATH 检测（库注入风险）
+- [x] 库 API — `AnalysisReport::analyze()` 统一入口
+- [x] 安全评分（0〜100）— 仪表盘 / 徽章展示
+- [x] 节区虚拟地址、文件偏移、rwx 权限
+- [x] 危险符号分类（Exec / Net / Mem）— 支持可视化工具按类型着色
+- [ ] VS Code 扩展（可视化前端）
 - [ ] SARIF 输出格式
 - [ ] macOS Mach-O 格式支持
 - [ ] 两个二进制文件的导入表差异对比（`binsleuth diff a.out b.out`）
