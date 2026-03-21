@@ -1,9 +1,9 @@
 use serde::Serialize;
 use std::path::Path;
 
+use crate::analyzer::AnalysisReport;
 use crate::analyzer::entropy::SectionEntropy;
 use crate::analyzer::hardening::HardeningInfo;
-use crate::analyzer::AnalysisReport;
 
 /// Full JSON report emitted by the CLI (includes the file path).
 #[derive(Serialize)]

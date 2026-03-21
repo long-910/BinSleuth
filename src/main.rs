@@ -4,8 +4,8 @@ use colored::Colorize;
 use std::fs;
 use std::path::PathBuf;
 
-use binsleuth::analyzer::hardening::CheckResult;
 use binsleuth::analyzer::AnalysisReport;
+use binsleuth::analyzer::hardening::CheckResult;
 use binsleuth::report;
 use binsleuth::report::terminal::TerminalReporter;
 

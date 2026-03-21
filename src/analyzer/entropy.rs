@@ -88,8 +88,8 @@ fn extract_permissions(flags: SectionFlags) -> SectionPermissions {
             execute: sh_flags & 0x4 != 0, // SHF_EXECINSTR
         },
         SectionFlags::Coff { characteristics } => SectionPermissions {
-            read: characteristics & 0x4000_0000 != 0,    // IMAGE_SCN_MEM_READ
-            write: characteristics & 0x8000_0000 != 0,   // IMAGE_SCN_MEM_WRITE
+            read: characteristics & 0x4000_0000 != 0, // IMAGE_SCN_MEM_READ
+            write: characteristics & 0x8000_0000 != 0, // IMAGE_SCN_MEM_WRITE
             execute: characteristics & 0x2000_0000 != 0, // IMAGE_SCN_MEM_EXECUTE
         },
         _ => SectionPermissions {
@@ -129,7 +129,7 @@ pub fn calculate_entropy(data: &[u8]) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{calculate_entropy, extract_permissions, SectionEntropy};
+    use super::{SectionEntropy, calculate_entropy, extract_permissions};
     use object::SectionFlags;
 
     #[test]
@@ -266,7 +266,10 @@ mod tests {
         // .text must be executable and have a non-zero virtual address
         if let Some(text) = sections.iter().find(|s| s.name == ".text") {
             assert!(text.permissions.execute, ".text must be executable");
-            assert!(text.virtual_address > 0, ".text must have a non-zero virtual address");
+            assert!(
+                text.virtual_address > 0,
+                ".text must have a non-zero virtual address"
+            );
             assert!(text.size > 0, ".text must have non-zero size");
         }
     }

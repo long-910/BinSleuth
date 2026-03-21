@@ -203,12 +203,7 @@ impl TerminalReporter {
                     SymbolCategory::Net => "[net] ",
                     SymbolCategory::Mem => "[mem] ",
                 };
-                println!(
-                    "    {}  {}  {}",
-                    "▶".red(),
-                    sym.name.yellow(),
-                    cat.dimmed()
-                );
+                println!("    {}  {}  {}", "▶".red(), sym.name.yellow(), cat.dimmed());
             }
         }
 

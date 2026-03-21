@@ -644,7 +644,10 @@ fn collect_dangerous_symbols(obj: &object::File) -> Vec<DangerousSymbol> {
 
 /// Return the category of a symbol if it is considered dangerous, otherwise `None`.
 fn categorize_dangerous_symbol(name: &str) -> Option<DangerousSymbol> {
-    let category = if DANGEROUS_EXEC.iter().any(|&d| name == d || name.contains(d)) {
+    let category = if DANGEROUS_EXEC
+        .iter()
+        .any(|&d| name == d || name.contains(d))
+    {
         SymbolCategory::Exec
     } else if DANGEROUS_NET.iter().any(|&d| name == d || name.contains(d)) {
         SymbolCategory::Net

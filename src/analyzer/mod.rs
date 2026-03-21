@@ -247,27 +247,51 @@ mod tests {
 
         let mut no_pie = full_hardening();
         no_pie.pie = CheckResult::Disabled;
-        assert_eq!(compute_score(&no_pie, &[]), full - 20, "PIE is worth 20 pts");
+        assert_eq!(
+            compute_score(&no_pie, &[]),
+            full - 20,
+            "PIE is worth 20 pts"
+        );
 
         let mut no_relro = full_hardening();
         no_relro.relro = CheckResult::Disabled;
-        assert_eq!(compute_score(&no_relro, &[]), full - 15, "RELRO is worth 15 pts");
+        assert_eq!(
+            compute_score(&no_relro, &[]),
+            full - 15,
+            "RELRO is worth 15 pts"
+        );
 
         let mut no_canary = full_hardening();
         no_canary.stack_canary = CheckResult::Disabled;
-        assert_eq!(compute_score(&no_canary, &[]), full - 15, "Stack canary is worth 15 pts");
+        assert_eq!(
+            compute_score(&no_canary, &[]),
+            full - 15,
+            "Stack canary is worth 15 pts"
+        );
 
         let mut no_fortify = full_hardening();
         no_fortify.fortify_source = CheckResult::Disabled;
-        assert_eq!(compute_score(&no_fortify, &[]), full - 10, "FORTIFY_SOURCE is worth 10 pts");
+        assert_eq!(
+            compute_score(&no_fortify, &[]),
+            full - 10,
+            "FORTIFY_SOURCE is worth 10 pts"
+        );
 
         let mut has_rpath = full_hardening();
         has_rpath.rpath = CheckResult::Disabled;
-        assert_eq!(compute_score(&has_rpath, &[]), full - 10, "No-RPATH is worth 10 pts");
+        assert_eq!(
+            compute_score(&has_rpath, &[]),
+            full - 10,
+            "No-RPATH is worth 10 pts"
+        );
 
         let mut not_stripped = full_hardening();
         not_stripped.stripped = CheckResult::Disabled;
-        assert_eq!(compute_score(&not_stripped, &[]), full - 5, "Stripped is worth 5 pts");
+        assert_eq!(
+            compute_score(&not_stripped, &[]),
+            full - 5,
+            "Stripped is worth 5 pts"
+        );
     }
 
     // ── AnalysisReport API ────────────────────────────────────────────────────
@@ -298,7 +322,10 @@ mod tests {
             serde_json::from_str(&report.to_json()).expect("to_json must produce valid JSON");
         assert!(v.get("hardening").is_some(), "missing 'hardening'");
         assert!(v.get("sections").is_some(), "missing 'sections'");
-        assert!(v.get("security_score").is_some(), "missing 'security_score'");
+        assert!(
+            v.get("security_score").is_some(),
+            "missing 'security_score'"
+        );
     }
 
     #[test]
