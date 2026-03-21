@@ -1,16 +1,30 @@
 use anyhow::Result;
-use object::{Object, ObjectSection};
+use object::{Object, ObjectSection, SectionFlags};
 use serde::Serialize;
+
+/// Read / write / execute permissions extracted from a section's flags.
+#[derive(Debug, Clone, Serialize)]
+pub struct SectionPermissions {
+    pub read: bool,
+    pub write: bool,
+    pub execute: bool,
+}
 
 /// Shannon entropy result for a single binary section.
 #[derive(Debug, Clone, Serialize)]
 pub struct SectionEntropy {
     /// Section name (e.g. `.text`, `.data`, `UPX0`)
     pub name: String,
-    /// Computed entropy in [0.0, 8.0]
-    pub entropy: f64,
+    /// Virtual address where the section is loaded (0 for unmapped sections)
+    pub virtual_address: u64,
+    /// Offset of the section data within the file (0 if not stored on disk)
+    pub file_offset: u64,
     /// Raw byte size of the section
     pub size: u64,
+    /// Computed entropy in [0.0, 8.0]
+    pub entropy: f64,
+    /// Read / write / execute flags (derived from section flags)
+    pub permissions: SectionPermissions,
 }
 
 impl SectionEntropy {
@@ -27,10 +41,16 @@ impl SectionEntropy {
             };
             let entropy = calculate_entropy(section_data);
             let size = section_data.len() as u64;
+            let virtual_address = section.address();
+            let file_offset = section.file_range().map(|(off, _)| off).unwrap_or(0);
+            let permissions = extract_permissions(section.flags());
             results.push(SectionEntropy {
                 name,
-                entropy,
+                virtual_address,
+                file_offset,
                 size,
+                entropy,
+                permissions,
             });
         }
 
@@ -39,12 +59,44 @@ impl SectionEntropy {
         if results.is_empty() {
             results.push(SectionEntropy {
                 name: "<whole file>".to_owned(),
-                entropy: calculate_entropy(data),
+                virtual_address: 0,
+                file_offset: 0,
                 size: data.len() as u64,
+                entropy: calculate_entropy(data),
+                permissions: SectionPermissions {
+                    read: true,
+                    write: false,
+                    execute: false,
+                },
             });
         }
 
         Ok(results)
+    }
+}
+
+/// Derive read/write/execute permissions from raw section flags.
+///
+/// ELF: uses `SHF_ALLOC` (0x2 = readable/mapped), `SHF_WRITE` (0x1), `SHF_EXECINSTR` (0x4).
+/// PE/COFF: uses `IMAGE_SCN_MEM_READ` (0x4000_0000), `IMAGE_SCN_MEM_WRITE` (0x8000_0000),
+///           `IMAGE_SCN_MEM_EXECUTE` (0x2000_0000).
+fn extract_permissions(flags: SectionFlags) -> SectionPermissions {
+    match flags {
+        SectionFlags::Elf { sh_flags } => SectionPermissions {
+            read: sh_flags & 0x2 != 0,    // SHF_ALLOC → mapped → readable
+            write: sh_flags & 0x1 != 0,   // SHF_WRITE
+            execute: sh_flags & 0x4 != 0, // SHF_EXECINSTR
+        },
+        SectionFlags::Coff { characteristics } => SectionPermissions {
+            read: characteristics & 0x4000_0000 != 0,    // IMAGE_SCN_MEM_READ
+            write: characteristics & 0x8000_0000 != 0,   // IMAGE_SCN_MEM_WRITE
+            execute: characteristics & 0x2000_0000 != 0, // IMAGE_SCN_MEM_EXECUTE
+        },
+        _ => SectionPermissions {
+            read: false,
+            write: false,
+            execute: false,
+        },
     }
 }
 
@@ -77,7 +129,8 @@ pub fn calculate_entropy(data: &[u8]) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::calculate_entropy;
+    use super::{calculate_entropy, extract_permissions, SectionEntropy};
+    use object::SectionFlags;
 
     #[test]
     fn zero_entropy_for_uniform_bytes() {
@@ -135,6 +188,109 @@ mod tests {
         let data: Vec<u8> = (0..512).map(|i| (32 + i % 96) as u8).collect();
         let h = calculate_entropy(&data);
         assert!(h > 0.0 && h < 8.0, "expected moderate entropy, got {h}");
+    }
+
+    // ── extract_permissions ───────────────────────────────────────────────────
+
+    #[test]
+    fn elf_rw_section() {
+        // SHF_ALLOC (0x2) | SHF_WRITE (0x1)
+        let p = extract_permissions(SectionFlags::Elf { sh_flags: 0x3 });
+        assert!(p.read, "SHF_ALLOC → readable");
+        assert!(p.write, "SHF_WRITE → writable");
+        assert!(!p.execute);
+    }
+
+    #[test]
+    fn elf_rx_section() {
+        // SHF_ALLOC (0x2) | SHF_EXECINSTR (0x4)
+        let p = extract_permissions(SectionFlags::Elf { sh_flags: 0x6 });
+        assert!(p.read);
+        assert!(!p.write);
+        assert!(p.execute, "SHF_EXECINSTR → executable");
+    }
+
+    #[test]
+    fn elf_non_alloc_section_not_readable() {
+        // No SHF_ALLOC → not mapped → not readable
+        let p = extract_permissions(SectionFlags::Elf { sh_flags: 0x0 });
+        assert!(!p.read);
+        assert!(!p.write);
+        assert!(!p.execute);
+    }
+
+    #[test]
+    fn coff_read_execute_section() {
+        // IMAGE_SCN_MEM_READ (0x4000_0000) | IMAGE_SCN_MEM_EXECUTE (0x2000_0000)
+        let p = extract_permissions(SectionFlags::Coff {
+            characteristics: 0x6000_0000,
+        });
+        assert!(p.read);
+        assert!(!p.write);
+        assert!(p.execute);
+    }
+
+    #[test]
+    fn coff_rw_section() {
+        // IMAGE_SCN_MEM_READ (0x4000_0000) | IMAGE_SCN_MEM_WRITE (0x8000_0000)
+        let p = extract_permissions(SectionFlags::Coff {
+            characteristics: 0xC000_0000,
+        });
+        assert!(p.read);
+        assert!(p.write);
+        assert!(!p.execute);
+    }
+
+    #[test]
+    fn unknown_flags_are_all_false() {
+        let p = extract_permissions(SectionFlags::None);
+        assert!(!p.read);
+        assert!(!p.write);
+        assert!(!p.execute);
+    }
+
+    // ── SectionEntropy::analyze new fields ───────────────────────────────────
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn analyze_self_sections_have_valid_metadata() {
+        let path = std::env::current_exe().expect("current exe");
+        let data = std::fs::read(&path).expect("read self");
+        let sections = SectionEntropy::analyze(&data).expect("analyze");
+
+        assert!(!sections.is_empty(), "expected at least one section");
+
+        // Every section must have a non-empty name
+        assert!(sections.iter().all(|s| !s.name.is_empty()));
+
+        // .text must be executable and have a non-zero virtual address
+        if let Some(text) = sections.iter().find(|s| s.name == ".text") {
+            assert!(text.permissions.execute, ".text must be executable");
+            assert!(text.virtual_address > 0, ".text must have a non-zero virtual address");
+            assert!(text.size > 0, ".text must have non-zero size");
+        }
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn analyze_self_section_sizes_match_entropy_domain() {
+        let path = std::env::current_exe().expect("current exe");
+        let data = std::fs::read(&path).expect("read self");
+        let sections = SectionEntropy::analyze(&data).expect("analyze");
+
+        for sec in &sections {
+            assert!(
+                sec.size > 0,
+                "section '{}' has zero size after filtering",
+                sec.name
+            );
+            assert!(
+                (0.0..=8.0).contains(&sec.entropy),
+                "section '{}' entropy {} out of [0,8]",
+                sec.name,
+                sec.entropy
+            );
+        }
     }
 
     #[test]

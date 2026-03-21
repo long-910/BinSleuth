@@ -4,8 +4,8 @@ use colored::Colorize;
 use std::fs;
 use std::path::PathBuf;
 
-use binsleuth::analyzer::entropy::SectionEntropy;
-use binsleuth::analyzer::hardening::{CheckResult, HardeningInfo};
+use binsleuth::analyzer::hardening::CheckResult;
+use binsleuth::analyzer::AnalysisReport;
 use binsleuth::report;
 use binsleuth::report::terminal::TerminalReporter;
 
@@ -71,40 +71,32 @@ fn run() -> Result<bool> {
         anyhow::bail!("File '{}' is empty.", path.display());
     }
 
-    // ── Hardening analysis ──────────────────────────────────────────────────
-    let hardening = HardeningInfo::analyze(&data).with_context(|| {
+    let report = AnalysisReport::analyze(&data).with_context(|| {
         format!(
             "Failed to parse '{}'. Is it a valid ELF or PE binary?",
             path.display()
         )
     })?;
 
-    // ── Entropy analysis ────────────────────────────────────────────────────
-    let entropies = SectionEntropy::analyze(&data).with_context(|| {
-        format!(
-            "Failed to compute section entropies for '{}'",
-            path.display()
-        )
-    })?;
-
     // ── Report ──────────────────────────────────────────────────────────────
     if cli.json {
-        report::json::print_json(path, &hardening, &entropies);
+        report::json::print_json(path, &report);
     } else {
         let reporter = TerminalReporter::new(cli.verbose);
-        reporter.print_report(path, &hardening, &entropies);
+        reporter.print_report(path, &report.hardening, &report.sections);
     }
 
     // ── Strict mode ─────────────────────────────────────────────────────────
-    let strict_fail = cli.strict && has_security_issues(&hardening);
+    let strict_fail = cli.strict && has_security_issues(&report);
     Ok(strict_fail)
 }
 
 /// Returns true if the binary has any hardening issues that should fail strict mode.
-fn has_security_issues(info: &HardeningInfo) -> bool {
-    info.nx == CheckResult::Disabled
-        || info.pie == CheckResult::Disabled
-        || info.stack_canary == CheckResult::Disabled
-        || info.relro == CheckResult::Disabled
-        || !info.dangerous_symbols.is_empty()
+fn has_security_issues(report: &AnalysisReport) -> bool {
+    let h = &report.hardening;
+    h.nx == CheckResult::Disabled
+        || h.pie == CheckResult::Disabled
+        || h.stack_canary == CheckResult::Disabled
+        || h.relro == CheckResult::Disabled
+        || !h.dangerous_symbols.is_empty()
 }

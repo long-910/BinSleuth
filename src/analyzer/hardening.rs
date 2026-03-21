@@ -50,7 +50,26 @@ pub struct HardeningInfo {
     /// Debug symbols stripped (Enabled = stripped = good; Disabled = debug info present)
     pub stripped: CheckResult,
     /// Dangerous symbols found in the import/symbol table
-    pub dangerous_symbols: Vec<String>,
+    pub dangerous_symbols: Vec<DangerousSymbol>,
+}
+
+/// Category of a dangerous symbol, used for colour-coded visualisation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SymbolCategory {
+    /// Process / shell execution (system, execve, WinExec, …)
+    Exec,
+    /// Network I/O (connect, socket, WinHttpOpen, …)
+    Net,
+    /// Memory permission manipulation (mprotect, VirtualAlloc, …)
+    Mem,
+}
+
+/// A dangerous symbol found in the binary's symbol / import table.
+#[derive(Debug, Clone, Serialize)]
+pub struct DangerousSymbol {
+    pub name: String,
+    pub category: SymbolCategory,
 }
 
 // ── Dangerous symbol lists ────────────────────────────────────────────────────
@@ -610,29 +629,34 @@ fn detect_rpath_32(data: &[u8]) -> CheckResult {
     }
 }
 
-fn collect_dangerous_symbols(obj: &object::File) -> Vec<String> {
-    let all_dangerous: Vec<&str> = DANGEROUS_EXEC
-        .iter()
-        .chain(DANGEROUS_NET.iter())
-        .chain(DANGEROUS_MEM.iter())
-        .copied()
-        .collect();
-
-    let mut found: Vec<String> = obj
+fn collect_dangerous_symbols(obj: &object::File) -> Vec<DangerousSymbol> {
+    let mut found: Vec<DangerousSymbol> = obj
         .symbols()
         .chain(obj.dynamic_symbols())
         .filter_map(|sym| sym.name().ok())
-        .filter(|name| {
-            all_dangerous
-                .iter()
-                .any(|&d| *name == d || name.contains(d))
-        })
-        .map(|n| n.to_owned())
+        .filter_map(categorize_dangerous_symbol)
         .collect();
 
-    found.sort();
-    found.dedup();
+    found.sort_by(|a, b| a.name.cmp(&b.name));
+    found.dedup_by(|a, b| a.name == b.name);
     found
+}
+
+/// Return the category of a symbol if it is considered dangerous, otherwise `None`.
+fn categorize_dangerous_symbol(name: &str) -> Option<DangerousSymbol> {
+    let category = if DANGEROUS_EXEC.iter().any(|&d| name == d || name.contains(d)) {
+        SymbolCategory::Exec
+    } else if DANGEROUS_NET.iter().any(|&d| name == d || name.contains(d)) {
+        SymbolCategory::Net
+    } else if DANGEROUS_MEM.iter().any(|&d| name == d || name.contains(d)) {
+        SymbolCategory::Mem
+    } else {
+        return None;
+    };
+    Some(DangerousSymbol {
+        name: name.to_owned(),
+        category,
+    })
 }
 
 // ── Unit tests ────────────────────────────────────────────────────────────────
@@ -787,6 +811,61 @@ mod tests {
             result,
             CheckResult::Enabled | CheckResult::Disabled | CheckResult::NotApplicable
         ));
+    }
+
+    // ── categorize_dangerous_symbol ───────────────────────────────────────────
+
+    #[test]
+    fn exec_symbol_is_categorized_as_exec() {
+        let sym = categorize_dangerous_symbol("system").expect("system must be dangerous");
+        assert_eq!(sym.name, "system");
+        assert_eq!(sym.category, SymbolCategory::Exec);
+    }
+
+    #[test]
+    fn net_symbol_is_categorized_as_net() {
+        let sym = categorize_dangerous_symbol("connect").expect("connect must be dangerous");
+        assert_eq!(sym.category, SymbolCategory::Net);
+    }
+
+    #[test]
+    fn mem_symbol_is_categorized_as_mem() {
+        let sym = categorize_dangerous_symbol("mprotect").expect("mprotect must be dangerous");
+        assert_eq!(sym.category, SymbolCategory::Mem);
+    }
+
+    #[test]
+    fn windows_exec_symbol_is_exec() {
+        let sym = categorize_dangerous_symbol("WinExec").expect("WinExec must be dangerous");
+        assert_eq!(sym.category, SymbolCategory::Exec);
+    }
+
+    #[test]
+    fn windows_net_symbol_is_net() {
+        let sym = categorize_dangerous_symbol("WSAConnect").expect("WSAConnect must be dangerous");
+        assert_eq!(sym.category, SymbolCategory::Net);
+    }
+
+    #[test]
+    fn windows_mem_symbol_is_mem() {
+        let sym =
+            categorize_dangerous_symbol("VirtualAlloc").expect("VirtualAlloc must be dangerous");
+        assert_eq!(sym.category, SymbolCategory::Mem);
+    }
+
+    #[test]
+    fn safe_symbols_return_none() {
+        assert!(categorize_dangerous_symbol("printf").is_none());
+        assert!(categorize_dangerous_symbol("malloc").is_none());
+        assert!(categorize_dangerous_symbol("strlen").is_none());
+        assert!(categorize_dangerous_symbol("memcpy").is_none());
+        assert!(categorize_dangerous_symbol("").is_none());
+    }
+
+    #[test]
+    fn dangerous_symbol_carries_name() {
+        let sym = categorize_dangerous_symbol("execve").unwrap();
+        assert_eq!(sym.name, "execve");
     }
 
     // ── Full HardeningInfo round-trip on the test binary (ELF) ───────────────

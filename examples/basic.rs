@@ -1,12 +1,11 @@
-//! Basic example: analyze a binary and print hardening + entropy results.
+//! Basic example: analyze a binary with the unified `AnalysisReport` API.
 //!
 //! Run with:
 //! ```text
 //! cargo run --example basic -- ./target/debug/binsleuth
 //! ```
 
-use binsleuth::analyzer::entropy::SectionEntropy;
-use binsleuth::analyzer::hardening::HardeningInfo;
+use binsleuth::AnalysisReport;
 
 fn main() {
     let path = std::env::args().nth(1).unwrap_or_else(|| {
@@ -16,30 +15,52 @@ fn main() {
 
     let data = std::fs::read(&path).expect("Failed to read file");
 
-    // ── Hardening checks ────────────────────────────────────────────────────
-    let hardening = HardeningInfo::analyze(&data).expect("Failed to analyze binary");
+    // ── Single call returns everything ──────────────────────────────────────
+    let report = AnalysisReport::analyze(&data).expect("Failed to analyze binary");
+    let h = &report.hardening;
 
-    println!("=== Hardening: {} ({}) ===", path, hardening.format);
-    println!("  Architecture: {}", hardening.architecture);
-    println!("  NX:           {:?}", hardening.nx);
-    println!("  PIE:          {:?}", hardening.pie);
-    println!("  RELRO:        {:?}", hardening.relro);
-    println!("  Stack Canary: {:?}", hardening.stack_canary);
-    println!("  Stripped:     {:?}", hardening.stripped);
+    println!("=== {} ({}, {}) ===", path, h.format, h.architecture);
+    println!("  Security score: {}/100", report.security_score);
+    println!();
+    println!("=== Hardening ===");
+    println!("  NX:             {:?}", h.nx);
+    println!("  PIE:            {:?}", h.pie);
+    println!("  RELRO:          {:?}", h.relro);
+    println!("  Stack Canary:   {:?}", h.stack_canary);
+    println!("  FORTIFY_SOURCE: {:?}", h.fortify_source);
+    println!("  No RPATH:       {:?}", h.rpath);
+    println!("  Stripped:       {:?}", h.stripped);
 
-    if !hardening.dangerous_symbols.is_empty() {
-        println!("  Dangerous symbols: {:?}", hardening.dangerous_symbols);
+    if !h.dangerous_symbols.is_empty() {
+        println!();
+        println!("  Dangerous symbols ({}):", h.dangerous_symbols.len());
+        for sym in &h.dangerous_symbols {
+            println!("    {:?}  {}", sym.category, sym.name);
+        }
     }
 
-    // ── Section entropy ─────────────────────────────────────────────────────
-    let entropies = SectionEntropy::analyze(&data).expect("Failed to compute entropy");
-
-    println!("\n=== Section Entropy ===");
-    for sec in &entropies {
+    // ── Section entropy with metadata ────────────────────────────────────────
+    println!();
+    println!("=== Sections ===");
+    println!(
+        "  {:<24}  {:>10}  {:>10}  {:>7}  rwx",
+        "Name", "VA", "FileOff", "Entropy"
+    );
+    for sec in &report.sections {
+        let p = &sec.permissions;
+        let rwx = format!(
+            "{}{}{}",
+            if p.read { 'r' } else { '-' },
+            if p.write { 'w' } else { '-' },
+            if p.execute { 'x' } else { '-' },
+        );
         let flag = if sec.entropy > 7.0 { " ⚠ HIGH" } else { "" };
         println!(
-            "  {:<24}  entropy={:.4}  size={}{}",
-            sec.name, sec.entropy, sec.size, flag
+            "  {:<24}  {:#010x}  {:#010x}  {:.4}  {}{}",
+            sec.name, sec.virtual_address, sec.file_offset, sec.entropy, rwx, flag
         );
     }
+
+    // ── JSON output (for tool integration) ───────────────────────────────────
+    // println!("{}", report.to_json_pretty());
 }

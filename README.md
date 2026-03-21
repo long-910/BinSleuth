@@ -14,7 +14,7 @@ Inspect ELF & PE binaries for hardening flags and detect packed/encrypted sectio
 [![Release](https://github.com/long-910/BinSleuth/actions/workflows/release.yml/badge.svg)](https://github.com/long-910/BinSleuth/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MSRV](https://img.shields.io/badge/rustc-1.85%2B-orange.svg)](https://www.rust-lang.org)
-[![Tests](https://img.shields.io/badge/tests-45%20passing-brightgreen.svg)](#)
+[![Tests](https://img.shields.io/badge/tests-85%20passing-brightgreen.svg)](#)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/long-910?label=Sponsor&logo=githubsponsors&color=EA4AAA)](https://github.com/sponsors/long-910)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/long910)
 
@@ -70,13 +70,28 @@ H = -Σ P(x) · log₂(P(x))       range: [0.0 – 8.0]
 
 ### 3. Dangerous Symbol Detection
 
-BinSleuth flags symbols that commonly appear in malicious or insecure binaries:
+BinSleuth flags symbols that commonly appear in malicious or insecure binaries, and reports each one with a **category**:
 
-| Category | Examples |
-|----------|---------|
-| **Code execution** | `system`, `execve`, `popen`, `WinExec`, `CreateProcess` |
-| **Network** | `connect`, `socket`, `gethostbyname`, `WinHttpOpen` |
-| **Memory manipulation** | `mprotect`, `mmap`, `VirtualAlloc`, `VirtualProtect` |
+| Category | JSON value | Examples |
+|----------|-----------|---------|
+| **Code execution** | `exec` | `system`, `execve`, `popen`, `WinExec`, `CreateProcess` |
+| **Network** | `net` | `connect`, `socket`, `gethostbyname`, `WinHttpOpen` |
+| **Memory manipulation** | `mem` | `mprotect`, `mmap`, `VirtualAlloc`, `VirtualProtect` |
+
+### 4. Security Score
+
+Every report includes a numeric **security score from 0 to 100**, computed from the weighted hardening results:
+
+| Check | Points |
+|-------|--------|
+| NX | 20 |
+| PIE | 20 |
+| RELRO (Full) | 15 · Partial: 7 · N/A: 15 |
+| Stack Canary | 15 |
+| FORTIFY_SOURCE | 10 |
+| No RPATH/RUNPATH | 10 |
+| Stripped | 5 |
+| No dangerous symbols | 5 (−1 per symbol) |
 
 ---
 
@@ -199,39 +214,59 @@ binsleuth --strict ./myapp && echo "Hardening OK" || echo "Hardening FAILED"
   ── Dangerous Symbol Usage ──────────────────────────────
 
   3 dangerous symbol(s) found:
-    ▶  execve
-    ▶  mprotect
-    ▶  socket
+    ▶  execve    [exec]
+    ▶  mprotect  [mem]
+    ▶  socket    [net]
 ```
 
 ---
 
 ## Library Usage
 
-`binsleuth` can be used as a Rust library crate in addition to the CLI.
+`binsleuth` can be used as a Rust library crate in addition to the CLI — for example as the core analysis engine of a VS Code extension.
 
 Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-binsleuth = "0.3"
+binsleuth = "0.4"
 ```
 
-Then use the public API:
+### Unified API (recommended)
+
+```rust
+// Single call — returns hardening, sections, and security score together
+let data = std::fs::read("path/to/binary")?;
+let report = binsleuth::analyze(&data)?;
+
+println!("Score: {}/100", report.security_score);
+println!("PIE:   {:?}", report.hardening.pie);
+
+for sec in &report.sections {
+    println!("{}: va={:#x} entropy={:.4} rwx={}{}{}",
+        sec.name, sec.virtual_address, sec.entropy,
+        if sec.permissions.read  { 'r' } else { '-' },
+        if sec.permissions.write { 'w' } else { '-' },
+        if sec.permissions.execute { 'x' } else { '-' },
+    );
+}
+
+for sym in &report.hardening.dangerous_symbols {
+    println!("  {:?}  {}", sym.category, sym.name);
+}
+
+// Serialize to JSON string (no stdout side-effect)
+let json: String = report.to_json_pretty();
+```
+
+### Lower-level API
 
 ```rust
 use binsleuth::analyzer::hardening::HardeningInfo;
 use binsleuth::analyzer::entropy::SectionEntropy;
 
-let data = std::fs::read("path/to/binary")?;
-
 let hardening = HardeningInfo::analyze(&data)?;
-println!("PIE: {:?}", hardening.pie);
-
-let entropies = SectionEntropy::analyze(&data)?;
-for sec in &entropies {
-    println!("{}: entropy={:.4}", sec.name, sec.entropy);
-}
+let sections  = SectionEntropy::analyze(&data)?;
 ```
 
 See the [API documentation on docs.rs](https://docs.rs/binsleuth) and [`examples/basic.rs`](examples/basic.rs) for a complete runnable example.
@@ -267,9 +302,12 @@ BinSleuth/
 
 | Type | Location | Role |
 |------|----------|------|
+| `AnalysisReport` | `analyzer/mod.rs` | Unified result: hardening + sections + security score |
 | `HardeningInfo` | `analyzer/hardening.rs` | Aggregated hardening check results |
 | `CheckResult` | `analyzer/hardening.rs` | `Enabled` / `Partial(msg)` / `Disabled` / `N/A` |
-| `SectionEntropy` | `analyzer/entropy.rs` | Section name + entropy value + byte size |
+| `DangerousSymbol` | `analyzer/hardening.rs` | Symbol name + `SymbolCategory` (Exec / Net / Mem) |
+| `SectionEntropy` | `analyzer/entropy.rs` | Section name, virtual address, file offset, size, entropy, permissions |
+| `SectionPermissions` | `analyzer/entropy.rs` | `read`, `write`, `execute` bool flags |
 | `TerminalReporter` | `report/terminal.rs` | Colored terminal output renderer |
 
 ---
@@ -314,14 +352,15 @@ cargo clippy -- -D warnings
 cargo fmt --check
 ```
 
-The test suite includes **24 unit tests**, **20 integration tests**, and **1 doc test**:
+The test suite includes **56 unit tests**, **26 integration tests**, and **3 doc tests** (85 total):
 
 | Module | Tests | Coverage |
 |--------|-------|---------|
-| `analyzer::entropy` | 9 | Shannon formula, edge cases, monotonicity |
-| `analyzer::hardening` | 15 | PE header parsing, RELRO states, FORTIFY_SOURCE, RPATH, ELF self-analysis |
-| `tests::cli` | 20 | CLI flags, JSON output, strict mode, stripped detection, error handling |
-| `lib.rs` (doc test) | 1 | Library API smoke test |
+| `analyzer::entropy` | 17 | Shannon formula, edge cases, monotonicity, `extract_permissions` (ELF/COFF flags), section metadata |
+| `analyzer::hardening` | 23 | PE header parsing, RELRO states, FORTIFY_SOURCE, RPATH, ELF self-analysis, dangerous symbol categorization |
+| `analyzer` (mod) | 16 | `compute_score` boundary values and per-check deductions, `AnalysisReport` API, JSON serialization |
+| `tests::cli` | 26 | CLI flags, JSON output, strict mode, stripped detection, error handling, `security_score`, section metadata, dangerous symbol categories |
+| doc tests | 3 | Library API smoke tests |
 
 ---
 
@@ -346,6 +385,11 @@ Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details *(coming soon)*.
 - [x] Strict mode for CI pipelines (`--strict`, exit code 2)
 - [x] FORTIFY_SOURCE detection (`__*_chk` symbol scan)
 - [x] RPATH/RUNPATH detection (library-injection risk)
+- [x] Library API — `AnalysisReport::analyze()` unified entry point
+- [x] Security score (0–100) for dashboard/badge display
+- [x] Per-section virtual address, file offset, and rwx permissions
+- [x] Dangerous symbol categories (Exec / Net / Mem) for colour-coded visualisation
+- [ ] VS Code extension (visualisation front-end)
 - [ ] SARIF output format
 - [ ] macOS Mach-O support
 - [ ] Import table diff between two binaries (`binsleuth diff a.out b.out`)

@@ -2,7 +2,7 @@ use colored::Colorize;
 use std::path::Path;
 
 use crate::analyzer::entropy::SectionEntropy;
-use crate::analyzer::hardening::{CheckResult, HardeningInfo};
+use crate::analyzer::hardening::{CheckResult, HardeningInfo, SymbolCategory};
 
 /// Entropy threshold above which a section is considered packed/encrypted.
 const ENTROPY_WARN_THRESHOLD: f64 = 7.0;
@@ -198,7 +198,17 @@ impl TerminalReporter {
                 .bold()
             );
             for sym in &info.dangerous_symbols {
-                println!("    {}  {}", "▶".red(), sym.yellow());
+                let cat = match sym.category {
+                    SymbolCategory::Exec => "[exec]",
+                    SymbolCategory::Net => "[net] ",
+                    SymbolCategory::Mem => "[mem] ",
+                };
+                println!(
+                    "    {}  {}  {}",
+                    "▶".red(),
+                    sym.name.yellow(),
+                    cat.dimmed()
+                );
             }
         }
 
