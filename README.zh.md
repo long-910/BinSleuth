@@ -17,6 +17,7 @@
 [![Tests](https://img.shields.io/badge/tests-85%20passing-brightgreen.svg)](#)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/long-910?label=Sponsor&logo=githubsponsors&color=EA4AAA)](https://github.com/sponsors/long-910)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/long910)
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/long-kudo.vscode-binsleuth?label=VS%20Code%20%E6%89%A9%E5%B1%95&logo=visualstudiocode&logoColor=white&color=007ACC)](https://marketplace.visualstudio.com/items?itemName=long-kudo.vscode-binsleuth)
 
 **Language / 言語 / 语言:**
 [English](README.md) · [日本語](README.ja.md) · [中文](README.zh.md)
@@ -116,6 +117,48 @@ cargo build --release
 
 - Rust **1.85** 或更高版本
 - 无需系统库 — 纯 Rust 实现
+
+---
+
+## VS Code 扩展
+
+BinSleuth 也提供 **Visual Studio Code 扩展**，在相同的分析引擎之上提供交互式图形界面。
+
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/long-kudo.vscode-binsleuth?label=从%20Marketplace%20安装&logo=visualstudiocode&color=007ACC)](https://marketplace.visualstudio.com/items?itemName=long-kudo.vscode-binsleuth)
+
+### 功能
+
+- **节区地图** — 甜甜圈图，展示各节区占文件大小的比例，按类型着色（`.text` 绿色、`.data` 青色、`.bss` 紫色）。点击扇区可在 Hex Editor 中跳转到对应偏移。
+- **节区热力图** — 横向条形图，同时编码节区大小（条形长度）和 Shannon 熵（颜色：蓝=低 → 红=高）。熵值超过 6.5 的节区会以荧光高亮，标记潜在的加壳或加密行为。支持按偏移、大小、熵值、名称排序。
+- **安全标志面板** — 以色彩徽章显示 NX、PIE、RELRO、CANARY、FORTIFY、STRIP，并给出 **安全评分（0–100）**。
+- **危险符号检测** — 列出高风险导入符号（Shell 执行、网络 I/O、内存操作）。
+- **自动检测** — 打开识别的二进制文件时自动触发分析。
+- **导出** — 支持将报告导出为 Markdown、JSON 或 CSV 格式。
+- **多语言支持** — 已适配日语和简体中文。
+
+### 安装
+
+在 VS Code 扩展面板中搜索 **"BinSleuth"**，或通过上方 Marketplace 徽章直接安装。
+
+也可从 [GitHub Releases](https://github.com/long-910/vscode-binsleuth/releases) 下载对应平台的 VSIX 安装包：
+
+| 平台 | 文件 |
+|------|------|
+| Linux | `*-linux-x64.vsix` |
+| macOS（Apple Silicon） | `*-darwin-arm64.vsix` |
+| macOS（Intel） | `*-darwin-x64.vsix` |
+| Windows | `*-win32-x64.vsix` |
+
+**要求：** VS Code >= 1.85。安装可选的 [Hex Editor](https://marketplace.visualstudio.com/items?itemName=ms-vscode.hexeditor) 扩展后可启用点击跳转偏移功能。
+
+### 命令
+
+| 命令 | 说明 |
+|------|------|
+| `binsleuth.analyzeFile` | 分析资源管理器中选中的文件（右键菜单） |
+| `binsleuth.analyzeActiveFile` | 分析当前打开的文件（编辑器标题栏菜单 / 命令面板） |
+
+> **注意：** 扩展通过本地 Rust 子进程（`binsleuth-bridge`）执行分析，无任何网络请求或遥测数据。
 
 ---
 
@@ -389,7 +432,7 @@ cargo fmt --check
 - [x] 安全评分（0〜100）— 仪表盘 / 徽章展示
 - [x] 节区虚拟地址、文件偏移、rwx 权限
 - [x] 危险符号分类（Exec / Net / Mem）— 支持可视化工具按类型着色
-- [ ] VS Code 扩展（可视化前端）
+- [x] VS Code 扩展 — [vscode-binsleuth](https://marketplace.visualstudio.com/items?itemName=long-kudo.vscode-binsleuth)（可视化前端）
 - [ ] SARIF 输出格式
 - [ ] macOS Mach-O 格式支持
 - [ ] 两个二进制文件的导入表差异对比（`binsleuth diff a.out b.out`）
