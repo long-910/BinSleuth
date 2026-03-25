@@ -17,6 +17,7 @@ Inspect ELF & PE binaries for hardening flags and detect packed/encrypted sectio
 [![Tests](https://img.shields.io/badge/tests-85%20passing-brightgreen.svg)](#)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/long-910?label=Sponsor&logo=githubsponsors&color=EA4AAA)](https://github.com/sponsors/long-910)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/long910)
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/long-kudo.vscode-binsleuth?label=VS%20Code%20Extension&logo=visualstudiocode&logoColor=white&color=007ACC)](https://marketplace.visualstudio.com/items?itemName=long-kudo.vscode-binsleuth)
 
 **Language / 言語 / 语言:**
 [English](README.md) · [日本語](README.ja.md) · [中文](README.zh.md)
@@ -116,6 +117,48 @@ cargo build --release
 
 - Rust **1.85** or later
 - No system libraries required — pure Rust
+
+---
+
+## VS Code Extension
+
+BinSleuth is also available as a **Visual Studio Code extension**, providing an interactive GUI on top of the same analysis engine.
+
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/long-kudo.vscode-binsleuth?label=Install%20from%20Marketplace&logo=visualstudiocode&color=007ACC)](https://marketplace.visualstudio.com/items?itemName=long-kudo.vscode-binsleuth)
+
+### Features
+
+- **Section Map** — Doughnut chart showing each section's share of file size, color-coded by type (`.text` green, `.data` cyan, `.bss` purple). Click a slice to jump to that offset in the Hex Editor.
+- **Section Heatmap** — Horizontal bar chart encoding size (bar length) and Shannon entropy (color: blue=low → red=high). Sections with entropy above 6.5 glow neon to flag potential packing or encryption. Sortable by offset, size, entropy, or name.
+- **Security Flags Panel** — Color-coded badges for NX, PIE, RELRO, CANARY, FORTIFY, and STRIP, plus an overall **security score (0–100)**.
+- **Dangerous Symbol Detection** — Lists high-risk imported symbols (shell execution, network I/O, memory manipulation).
+- **Auto-Detection** — Analysis triggers automatically when a recognized binary file is opened.
+- **Export** — Reports exportable as Markdown, JSON, or CSV.
+- **Localization** — Japanese and Simplified Chinese supported.
+
+### Installation
+
+Search **"BinSleuth"** in the VS Code Extensions panel, or install via the Marketplace link above.
+
+You can also download platform-specific VSIX packages from the [GitHub Releases](https://github.com/long-910/vscode-binsleuth/releases):
+
+| Platform | File |
+|----------|------|
+| Linux | `*-linux-x64.vsix` |
+| macOS (Apple Silicon) | `*-darwin-arm64.vsix` |
+| macOS (Intel) | `*-darwin-x64.vsix` |
+| Windows | `*-win32-x64.vsix` |
+
+**Requirements:** VS Code >= 1.85. The [Hex Editor](https://marketplace.visualstudio.com/items?itemName=ms-vscode.hexeditor) extension is optional but enables click-to-offset navigation.
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `binsleuth.analyzeFile` | Analyze a file selected in the Explorer (right-click context menu) |
+| `binsleuth.analyzeActiveFile` | Analyze the currently open file (editor title menu / command palette) |
+
+> **Note:** The extension calls a local Rust subprocess (`binsleuth-bridge`) — no network calls or telemetry.
 
 ---
 
@@ -389,7 +432,7 @@ Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details *(coming soon)*.
 - [x] Security score (0–100) for dashboard/badge display
 - [x] Per-section virtual address, file offset, and rwx permissions
 - [x] Dangerous symbol categories (Exec / Net / Mem) for colour-coded visualisation
-- [ ] VS Code extension (visualisation front-end)
+- [x] VS Code extension — [vscode-binsleuth](https://marketplace.visualstudio.com/items?itemName=long-kudo.vscode-binsleuth) (visualisation front-end)
 - [ ] SARIF output format
 - [ ] macOS Mach-O support
 - [ ] Import table diff between two binaries (`binsleuth diff a.out b.out`)

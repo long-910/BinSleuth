@@ -17,6 +17,7 @@
 [![Tests](https://img.shields.io/badge/tests-85%20passing-brightgreen.svg)](#)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/long-910?label=Sponsor&logo=githubsponsors&color=EA4AAA)](https://github.com/sponsors/long-910)
 [![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/long910)
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/long-kudo.vscode-binsleuth?label=VS%20Code%20%E6%8B%A1%E5%BC%B5&logo=visualstudiocode&logoColor=white&color=007ACC)](https://marketplace.visualstudio.com/items?itemName=long-kudo.vscode-binsleuth)
 
 **Language / 言語 / 语言:**
 [English](README.md) · [日本語](README.ja.md) · [中文](README.zh.md)
@@ -116,6 +117,48 @@ cargo build --release
 
 - Rust **1.85** 以降
 - システムライブラリ不要 — 純粋 Rust 実装
+
+---
+
+## VS Code 拡張機能
+
+BinSleuth は **Visual Studio Code 拡張機能**としても利用できます。同じ解析エンジンをベースとした、インタラクティブな GUI を提供します。
+
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/long-kudo.vscode-binsleuth?label=Marketplace%20からインストール&logo=visualstudiocode&color=007ACC)](https://marketplace.visualstudio.com/items?itemName=long-kudo.vscode-binsleuth)
+
+### 機能
+
+- **セクションマップ** — ファイルサイズに占める各セクションの割合をドーナツチャートで表示。セクション種別ごとに色分け（`.text` 緑・`.data` シアン・`.bss` 紫）。スライスをクリックすると Hex Editor でそのオフセットに移動。
+- **セクションヒートマップ** — サイズ（バーの長さ）と Shannon エントロピー（色: 青=低 → 赤=高）を横棒グラフで視覚化。エントロピーが 6.5 を超えるセクションはネオングローで強調され、パックや暗号化の可能性をフラグ。オフセット・サイズ・エントロピー・名前でソート可能。
+- **セキュリティフラグパネル** — NX・PIE・RELRO・CANARY・FORTIFY・STRIP を色分けバッジで表示。**セキュリティスコア（0〜100）** も一覧表示。
+- **危険なシンボル検出** — シェル実行・ネットワーク I/O・メモリ操作に関わる高リスクシンボルを一覧表示。
+- **自動検出** — 対象バイナリファイルを開くと自動的に解析を実行。
+- **エクスポート** — レポートを Markdown・JSON・CSV 形式でエクスポート可能。
+- **多言語対応** — 日本語・中国語（簡体字）をサポート。
+
+### インストール
+
+VS Code の拡張機能パネルで **「BinSleuth」** を検索するか、上記 Marketplace バッジからインストールしてください。
+
+プラットフォーム別の VSIX パッケージは [GitHub Releases](https://github.com/long-910/vscode-binsleuth/releases) からもダウンロードできます。
+
+| プラットフォーム | ファイル |
+|----------------|---------|
+| Linux | `*-linux-x64.vsix` |
+| macOS (Apple Silicon) | `*-darwin-arm64.vsix` |
+| macOS (Intel) | `*-darwin-x64.vsix` |
+| Windows | `*-win32-x64.vsix` |
+
+**要件:** VS Code >= 1.85。[Hex Editor](https://marketplace.visualstudio.com/items?itemName=ms-vscode.hexeditor) 拡張（任意）があるとクリックでオフセット移動が可能になります。
+
+### コマンド
+
+| コマンド | 説明 |
+|---------|------|
+| `binsleuth.analyzeFile` | エクスプローラーで選択したファイルを解析（右クリックメニュー） |
+| `binsleuth.analyzeActiveFile` | 現在開いているファイルを解析（エディタタイトルメニュー / コマンドパレット） |
+
+> **注意:** 拡張機能はローカルの Rust サブプロセス（`binsleuth-bridge`）を呼び出します。ネットワーク通信・テレメトリは一切ありません。
 
 ---
 
@@ -389,7 +432,7 @@ cargo fmt --check
 - [x] セキュリティスコア（0〜100）— ダッシュボード・バッジ表示用
 - [x] セクション仮想アドレス・ファイルオフセット・rwx パーミッション
 - [x] 危険シンボルカテゴリ（Exec / Net / Mem）— 可視化ツール向け色分け対応
-- [ ] VS Code 拡張（可視化フロントエンド）
+- [x] VS Code 拡張 — [vscode-binsleuth](https://marketplace.visualstudio.com/items?itemName=long-kudo.vscode-binsleuth)（可視化フロントエンド）
 - [ ] SARIF 出力フォーマット
 - [ ] macOS Mach-O 対応
 - [ ] 2つのバイナリのインポート差分（`binsleuth diff a.out b.out`）
