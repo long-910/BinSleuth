@@ -36,7 +36,7 @@ path = "src/main.rs"
 all-features = true
 
 [dependencies]
-object       = { version = "0.38", default-features = false, features = ["read", "elf", "pe"] }
+object       = { version = "0.39", default-features = false, features = ["read", "elf", "pe"] }
 clap         = { version = "4.5", features = ["derive"] }
 anyhow       = "1.0"
 colored      = "3.0"
